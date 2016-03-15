@@ -184,4 +184,18 @@ public class SimHashUtils
         }
         return simhash;
     }
+
+
+    /**
+     * Returns simHash of the given document
+     *
+     * @param text plain text
+     * @return simhash
+     */
+    public static long getSimHash(String text)
+    {
+        Set<String> shingles = SimHashUtils.createCharGramsShingles(text);
+        Set<Integer> hashPhrases = SimHashUtils.hash(shingles);
+        return SimHashUtils.simHash(hashPhrases);
+    }
 }

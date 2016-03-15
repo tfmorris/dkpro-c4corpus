@@ -19,7 +19,7 @@ package de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full;
 
 import de.tudarmstadt.ukp.dkpro.c4corpus.boilerplate.BoilerPlateRemoval;
 import de.tudarmstadt.ukp.dkpro.c4corpus.boilerplate.impl.JusTextBoilerplateRemoval;
-import de.tudarmstadt.ukp.dkpro.c4corpus.deduplication.impl.ParallelDocumentDeDuplication;
+import de.tudarmstadt.ukp.dkpro.c4corpus.deduplication.impl.SimHashUtils;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.CharsetDetector;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.LanguageIdentifier;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.impl.CybozuLanguageIdentifier;
@@ -248,7 +248,7 @@ public class Phase1FullJob
             final String language = LANGUAGE_IDENTIFIER.identifyLanguage(plainText);
 
             // compute simhash
-            long docSimHash = ParallelDocumentDeDuplication.getSimHash(plainText);
+            long docSimHash = SimHashUtils.getSimHash(plainText);
 
             WARCRecord.Header header = value.getRecord().getHeader();
 
