@@ -158,13 +158,12 @@ public class ParallelDocumentDeDuplication
     /**
      * Returns simHash of the given document
      *
+     * @deprecated Use {@link SimHashUtils#getSimHash(String)}
      * @param text plain text
      * @return sim hash
      */
     public static long getSimHash(String text)
     {
-        Set<String> shingles = SimHashUtils.createCharGramsShingles(text);
-        Set<Integer> hashPhrases = SimHashUtils.hash(shingles);
-        return SimHashUtils.simHash(hashPhrases);
+        return SimHashUtils.getSimHash(text);
     }
 }
