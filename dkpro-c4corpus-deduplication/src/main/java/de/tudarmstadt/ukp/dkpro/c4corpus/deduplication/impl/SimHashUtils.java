@@ -17,10 +17,13 @@
  */
 package de.tudarmstadt.ukp.dkpro.c4corpus.deduplication.impl;
 
+import java.nio.charset.Charset;
 import java.util.BitSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
+
+import de.greenrobot.common.hash.FNVJ64;
 
 /**
  * methods that will be used to calculate simHash
@@ -215,23 +218,28 @@ public class SimHashUtils
 
 
     /**
-     * Convert a text into a number of "characters n-grams" shingles and hash
-     * the shingles.
+     * Convert a string into a number of UTF-8 byte n-gram shingles and hash the shingles.
      * <p>
-     * This combines the functionality of createCharGramsShingles() and hash()
-     * without the overhead of the temporary storage and extra method calls.
+     * This combines the functionality of {@link #createCharGramsShingles} and {@link #hash} without
+     * the overhead of the temporary storage and extra method calls, plus it uses the 64-bit FNVJ64
+     * hash instead of the 32-bit result produced by {@link Object#hashCode()}.
      *
      * @param text
+     *            string to be hashed
+     * @param size
+     *            number of bytes to use for the N-grams
      * @return array of hashes (longs)
      */
     public static long[] createCharGramShingleHashes(String text, int size)
     {
         long[] hashedShingles = new long[text.length() - size + 1];
+        FNVJ64 hasher = new FNVJ64();
 
-        for (int i = 0; i < text.length() - size + 1; i++) {
-            String shingle = text.substring(i, i + size); // extract an n-gram
-            // FIXME: hashCode only returns 32 bits of hash, not 64
-            hashedShingles[i] = shingle.hashCode() & 0xFFFFFFFFL; // mask to avoid sign extension
+        byte[] bytes = text.getBytes(Charset.forName("UTF-8"));
+        for (int i = 0; i < bytes.length - size + 1; i++) {
+            hasher.reset();
+            hasher.update(bytes, i, size);
+            hashedShingles[i] = hasher.getValue();
         }
         return hashedShingles;
     }
