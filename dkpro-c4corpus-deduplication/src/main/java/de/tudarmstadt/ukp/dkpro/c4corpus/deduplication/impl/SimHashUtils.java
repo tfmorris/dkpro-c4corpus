@@ -92,6 +92,7 @@ public class SimHashUtils
      * count the number of bits that differ between two queries as a measure of
      * dissimilarity. Also known as Hamming distance based on the bit population
      *
+     * @deprecated Use {@link Long#bitCount(long)} hash1 ^ hash2
      * @param simHash1 hash 1
      * @param simHash2 hash 2
      * @return different bits
