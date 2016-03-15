@@ -40,6 +40,7 @@ public class SimHashUtilsTest {
         assertEquals(refSet, hashes);
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void testDiffOfBits() {
         assertEquals(1, SimHashUtils.diffOfBits(0x1L, 0x0L));
@@ -79,13 +80,9 @@ public class SimHashUtilsTest {
     @Test
     public void testCreateCharGramShingleHashes()
     {
-        // FIXME: Verify that these hashes are correct
-        long[] refHashes = {-1206291356 & 0xFFFFFFFFL, -289204219 & 0xFFFFFFFFL, 627882918 & 0xFFFFFFFFL};
+        long[] refHashes = { 4642726675185563447L, 6873657168084888886L, 5551013448490103021L };
         long[] testHashes = SimHashUtils.createCharGramShingleHashes("abcdefghi",
                 SimHashUtils.CHAR_GRAM_LENGTH);
-//        for (long hash : testHashes) {
-//            System.out.println(" new " + Long.toBinaryString(hash));
-//        }
         assertArrayEquals(refHashes, testHashes);
     }
 
@@ -103,12 +100,8 @@ public class SimHashUtilsTest {
     @Test
     public void testGetSimHash2()
     {
-        // FIXME: Verify that this simhash is correct
-        long good = -6032228495725610972L ; // & 0xFFFFFFFFL;
+        long good = 5578872874433410359L;
         long test = SimHashUtils.getSimHash2("abcdefghi");
-        test = test << 32 | test; // Old code replicates hash in upper 32-bits
-//        System.out.println("new good: " + Long.toBinaryString(good));
-//        System.out.println("new test: " + Long.toBinaryString(test));
         assertEquals(good, test);
     }
 }
