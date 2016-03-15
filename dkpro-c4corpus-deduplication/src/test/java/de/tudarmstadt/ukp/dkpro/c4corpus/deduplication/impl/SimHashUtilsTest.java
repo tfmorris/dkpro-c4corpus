@@ -76,4 +76,20 @@ public class SimHashUtilsTest {
         assertEquals(-6032228495725610972L, SimHashUtils.simHash(hashValues));
     }
 
+    @Test
+    public void testCreateCharGramShingleHashes()
+    {
+        // FIXME: Verify that these hashes are correct
+        Integer[] refHashes = { -289204219, 627882918, -1206291356 };
+        Set<Integer> refSet = new HashSet<Integer>(Arrays.asList(refHashes));
+        assertEquals(refSet, SimHashUtils.createCharGramShingleHashes("abcdefghi",
+                SimHashUtils.CHAR_GRAM_LENGTH));
+    }
+
+    @Test
+    public void testGetSimHash()
+    {
+        // FIXME: Verify that this simhash is correct
+        assertEquals(-6032228495725610972L, SimHashUtils.getSimHash("abcdefghi"));
+    }
 }
