@@ -187,6 +187,30 @@ public class SimHashUtils
 
 
     /**
+     * Convert a text into a number of "characters n-grams" shingles and hash
+     * the shingles.
+     * <p>
+     * This combines the functionality of createCharGramsShingles() and hash()
+     * without the overhead of the temporary storage and extra method calls.
+     *
+     * @param text
+     * @return
+     */
+    public static Set<Integer> createCharGramShingleHashes(String text, int size)
+    {
+        Set<Integer> hashedShingles = new LinkedHashSet<Integer>();
+
+        for (int i = 0; i < text.length() - size + 1; i++) {
+            // extract an n-gram
+            String shingle = text.substring(i, i + size);
+            // hash it and add the hash to our result set
+            hashedShingles.add(shingle.hashCode());
+        }
+        return hashedShingles;
+    }
+
+
+    /**
      * Returns simHash of the given document
      *
      * @param text plain text
@@ -194,8 +218,8 @@ public class SimHashUtils
      */
     public static long getSimHash(String text)
     {
-        Set<String> shingles = SimHashUtils.createCharGramsShingles(text);
-        Set<Integer> hashPhrases = SimHashUtils.hash(shingles);
+        Set<Integer> hashPhrases = 
+                SimHashUtils.createCharGramShingleHashes(text, CHAR_GRAM_LENGTH);
         return SimHashUtils.simHash(hashPhrases);
     }
 }
