@@ -80,16 +80,35 @@ public class SimHashUtilsTest {
     public void testCreateCharGramShingleHashes()
     {
         // FIXME: Verify that these hashes are correct
-        Integer[] refHashes = { -289204219, 627882918, -1206291356 };
-        Set<Integer> refSet = new HashSet<Integer>(Arrays.asList(refHashes));
-        assertEquals(refSet, SimHashUtils.createCharGramShingleHashes("abcdefghi",
-                SimHashUtils.CHAR_GRAM_LENGTH));
+        long[] refHashes = {-1206291356 & 0xFFFFFFFFL, -289204219 & 0xFFFFFFFFL, 627882918 & 0xFFFFFFFFL};
+        long[] testHashes = SimHashUtils.createCharGramShingleHashes("abcdefghi",
+                SimHashUtils.CHAR_GRAM_LENGTH);
+//        for (long hash : testHashes) {
+//            System.out.println(" new " + Long.toBinaryString(hash));
+//        }
+        assertArrayEquals(refHashes, testHashes);
     }
 
     @Test
     public void testGetSimHash()
     {
         // FIXME: Verify that this simhash is correct
-        assertEquals(-6032228495725610972L, SimHashUtils.getSimHash("abcdefghi"));
+        long good = -6032228495725610972L;
+        long test = SimHashUtils.getSimHash("abcdefghi");
+//        System.out.println("old good: " + Long.toBinaryString(good));
+//        System.out.println("old test: " + Long.toBinaryString(test));
+        assertEquals(good, test);
+    }
+    
+    @Test
+    public void testGetSimHash2()
+    {
+        // FIXME: Verify that this simhash is correct
+        long good = -6032228495725610972L ; // & 0xFFFFFFFFL;
+        long test = SimHashUtils.getSimHash2("abcdefghi");
+        test = test << 32 | test; // Old code replicates hash in upper 32-bits
+//        System.out.println("new good: " + Long.toBinaryString(good));
+//        System.out.println("new test: " + Long.toBinaryString(test));
+        assertEquals(good, test);
     }
 }
