@@ -185,6 +185,34 @@ public class SimHashUtils
         return simhash;
     }
 
+    /**
+     * Compress the hashes of all the shingles of one document to a single
+     * fingerprint (SimHash) This implementation is based on the algorithm
+     * described here: http://www.titouangalopin.com/blog/2014-05-29-simhash
+     *
+     * @param hashValues
+     * @return
+     */
+    public static long simHash(long[] hashValues)
+    {
+        int[] v = new int[HASH_LENGTH];
+        long simhash = 0;
+        for (long hash : hashValues) {
+            for (int i = 0; i < HASH_LENGTH; i++) {
+                // convert 0/1 bit to -1/+1 vote
+                long vote = ((hash >>> i) & 1L) * 2L - 1L; // UNSIGNED right shift
+                v[i] += vote;
+            }
+        }
+        // Convert counts back to global hash
+        for (int i = 0; i < HASH_LENGTH; ++i) {
+            if (v[i] > 0) {
+                simhash |= (1L << i);
+            }
+        }
+        return simhash;
+    }
+
 
     /**
      * Convert a text into a number of "characters n-grams" shingles and hash
@@ -194,17 +222,16 @@ public class SimHashUtils
      * without the overhead of the temporary storage and extra method calls.
      *
      * @param text
-     * @return
+     * @return array of hashes (longs)
      */
-    public static Set<Integer> createCharGramShingleHashes(String text, int size)
+    public static long[] createCharGramShingleHashes(String text, int size)
     {
-        Set<Integer> hashedShingles = new LinkedHashSet<Integer>();
+        long[] hashedShingles = new long[text.length() - size + 1];
 
         for (int i = 0; i < text.length() - size + 1; i++) {
-            // extract an n-gram
-            String shingle = text.substring(i, i + size);
-            // hash it and add the hash to our result set
-            hashedShingles.add(shingle.hashCode());
+            String shingle = text.substring(i, i + size); // extract an n-gram
+            // FIXME: hashCode only returns 32 bits of hash, not 64
+            hashedShingles[i] = shingle.hashCode() & 0xFFFFFFFFL; // mask to avoid sign extension
         }
         return hashedShingles;
     }
@@ -218,7 +245,14 @@ public class SimHashUtils
      */
     public static long getSimHash(String text)
     {
-        Set<Integer> hashPhrases = 
+        Set<String> shingles = SimHashUtils.createCharGramsShingles(text);
+        Set<Integer> hashPhrases = SimHashUtils.hash(shingles);
+        return SimHashUtils.simHash(hashPhrases);
+    }
+
+    public static long getSimHash2(String text)
+    {
+        long[] hashPhrases = 
                 SimHashUtils.createCharGramShingleHashes(text, CHAR_GRAM_LENGTH);
         return SimHashUtils.simHash(hashPhrases);
     }
