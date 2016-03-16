@@ -128,8 +128,8 @@ public class Phase3Step3NearDupTuplesCreation
                     DocumentInfo similarDoc = new DocumentInfo(similarCandidates.get(j));
                     long similarDocSimHash = similarDoc.getDocSimHash().get();
 
-                    //calc the hamming distance
-                    int hammingDist = SimHashUtils.diffOfBits(headDocSimHash, similarDocSimHash);
+                    //calc the Hamming distance (number of bits different)
+                    int hammingDist = Long.bitCount(headDocSimHash ^ similarDocSimHash);
                     //if the hamming distance is <=3
                     if (hammingDist <= SimHashUtils.HAMMING_DISTANCE_THRESHOLD) {
                         //save the doc in one cluster
