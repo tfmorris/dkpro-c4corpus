@@ -38,7 +38,6 @@ import org.apache.hadoop.util.ToolRunner;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.TreeSet;
 
@@ -111,21 +110,22 @@ public class Phase3Step3NearDupTuplesCreation
             FileSplit fileSplit = (FileSplit) context.getInputSplit();
             String fileName = fileSplit.getPath().getName();
 
-            //process text as docInfo enteries 
+            //process text as docInfo entries
             String[] documents = value.toString().split(",");
 
-            List<String> similarCandidates = new ArrayList<>(Arrays.asList(documents));
+            List<DocumentInfo> similarCandidates = new ArrayList<DocumentInfo>(documents.length);
+            for (String docString : documents) {
+                similarCandidates.add(new DocumentInfo(docString));
+            }
 
             for (int i = 0; i < similarCandidates.size() - 1; i++) {
 
-                //process the head doc
-                DocumentInfo headDoc = new DocumentInfo(similarCandidates.get(i));
+                //get the head doc
+                DocumentInfo headDoc = similarCandidates.get(i);
                 long headDocSimHash = headDoc.getDocSimHash().get();
                 //other candidates
                 for (int j = i + 1; j < similarCandidates.size(); j++) {
-                    // TODO: This could be memoized. It's recreating DocInfos
-                    // and fetching SimHashes repeatedly.
-                    DocumentInfo similarDoc = new DocumentInfo(similarCandidates.get(j));
+                    DocumentInfo similarDoc = similarCandidates.get(j);
                     long similarDocSimHash = similarDoc.getDocSimHash().get();
 
                     //calc the Hamming distance (number of bits different)
