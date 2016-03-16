@@ -26,7 +26,6 @@ import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.io.WARCWritable;
 import de.tudarmstadt.ukp.dkpro.c4corpus.warc.io.WARCRecord;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
@@ -124,11 +123,7 @@ public class Phase3Step1ExtractNearDupInfo
             Set<String> bandsOfBitsHashIndex = SimHashUtils.computeHashIndex(docSimHash);
 
             // create a new container
-            DocumentInfo d = new DocumentInfo();
-            d.setDocID(new Text(docID));
-            d.setDocLength(new IntWritable(docLength));
-            d.setDocSimHash(new LongWritable(docSimHash));
-            d.setDocLanguage(new Text(language));
+            DocumentInfo d = new DocumentInfo(docID, docLength, docSimHash, language);
 
             for (String bandOfBits : bandsOfBitsHashIndex) {
                 context.write(new Text(bandOfBits), d);

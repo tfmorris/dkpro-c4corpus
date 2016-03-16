@@ -17,8 +17,6 @@
  */
 package de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.deduplication;
 
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -54,12 +52,10 @@ public class DeDuplicationTextOutputReducer
         //collect the values of each band#_bitString
         for (DocumentInfo v : values) {
             // we really need the copy here!
-            DocumentInfo documentInfo = new DocumentInfo();
-            documentInfo.setDocSimHash(new LongWritable(v.getDocSimHash().get()));
-            documentInfo.setDocLength(new IntWritable(v.getDocLength().get()));
-            documentInfo.setDocID(new Text(v.getDocID().toString()));
-            documentInfo.setDocLanguage(new Text(v.getDocLang().toString()));
-
+            DocumentInfo documentInfo = new DocumentInfo(v.getDocID().toString(),
+                    v.getDocLength().get(),
+                    v.getDocSimHash().get(),
+                    v.getDocLang().toString());
             documents.add(documentInfo);
         }
 

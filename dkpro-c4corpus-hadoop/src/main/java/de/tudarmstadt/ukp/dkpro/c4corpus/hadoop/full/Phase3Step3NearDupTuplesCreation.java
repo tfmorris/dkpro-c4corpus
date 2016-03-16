@@ -119,13 +119,13 @@ public class Phase3Step3NearDupTuplesCreation
             for (int i = 0; i < similarCandidates.size() - 1; i++) {
 
                 //process the head doc
-                DocumentInfo headDoc = new DocumentInfo();
-                headDoc.createDocumentInfo(similarCandidates.get(i));
+                DocumentInfo headDoc = new DocumentInfo(similarCandidates.get(i));
                 long headDocSimHash = headDoc.getDocSimHash().get();
                 //other candidates
                 for (int j = i + 1; j < similarCandidates.size(); j++) {
-                    DocumentInfo similarDoc = new DocumentInfo();
-                    similarDoc.createDocumentInfo(similarCandidates.get(j));
+                    // TODO: This could be memoized. It's recreating DocInfos
+                    // and fetching SimHashes repeatedly.
+                    DocumentInfo similarDoc = new DocumentInfo(similarCandidates.get(j));
                     long similarDocSimHash = similarDoc.getDocSimHash().get();
 
                     //calc the hamming distance
@@ -134,10 +134,12 @@ public class Phase3Step3NearDupTuplesCreation
                     if (hammingDist <= SimHashUtils.HAMMING_DISTANCE_THRESHOLD) {
                         //save the doc in one cluster
                         //the Document datastructure must implement a compare method
-                        //in order to be able to add the document iinto the TreeSet
+                        //in order to be able to add the document into the TreeSet
                         TreeSet<DocumentInfo> cluster = new TreeSet<>();
                         cluster.add(headDoc);
                         cluster.add(similarDoc);
+                        // TODO: This is outputting pairs, not clusters of documents
+                        // is that intended?
                         if (cluster.size() > 1) {
                             //                            context.write(NullWritable.get(), cluster);
                             multipleOutputs.write(NullWritable.get(), cluster, fileName);
