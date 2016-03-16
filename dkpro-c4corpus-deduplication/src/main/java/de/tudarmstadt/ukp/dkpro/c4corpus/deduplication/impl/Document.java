@@ -18,7 +18,10 @@
 package de.tudarmstadt.ukp.dkpro.c4corpus.deduplication.impl;
 
 /**
- * A data structure to hold the document information
+ * A data structure to hold the document information.
+ * 
+ * TODO: Factor out commonalities. This is almost identical to 
+ * {@link de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.deduplication.DocumentInfo}.
  *
  * @author Omnia ayed
  */
