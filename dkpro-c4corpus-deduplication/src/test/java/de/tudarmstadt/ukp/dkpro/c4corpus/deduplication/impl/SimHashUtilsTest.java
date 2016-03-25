@@ -40,6 +40,7 @@ public class SimHashUtilsTest {
         assertEquals(refSet, hashes);
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void testDiffOfBits() {
         assertEquals(1, SimHashUtils.diffOfBits(0x1L, 0x0L));

@@ -23,7 +23,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import de.greenrobot.common.hash.FNVJ64;
+import de.greenrobot.common.hash.FNV64;
 
 /**
  * methods that will be used to calculate simHash
@@ -233,14 +233,20 @@ public class SimHashUtils
      */
     public static long[] createCharGramShingleHashes(String text, int size)
     {
-        long[] hashedShingles = new long[text.length() - size + 1];
-        FNVJ64 hasher = new FNVJ64();
-
         byte[] bytes = text.getBytes(Charset.forName("UTF-8"));
-        for (int i = 0; i < bytes.length - size + 1; i++) {
+        if (bytes.length < size) {
+            // TODO: Do we want to pad out to min length instead of aborting?
+            return new long[0];
+        }
+
+        long[] hashedShingles = new long[bytes.length - size + 1];
+        FNV64 hasher = new FNV64(); // FNVJ64 doesn't distribute evenly enough
+
+        for (int i = 0; i < bytes.length - size; i++) {
             hasher.reset();
             hasher.update(bytes, i, size);
             hashedShingles[i] = hasher.getValue();
+            // TODO: Update votes directly inline here
         }
         return hashedShingles;
     }
