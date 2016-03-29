@@ -70,6 +70,14 @@ public class Phase1FullJob
         extends Configured
         implements Tool
 {
+    public static enum C4_COUNTER
+    {
+        TOO_BIG,
+        NOT_HTTP_RESPONSE,
+        WRONG_CONTENT_TYPE,
+        EMPTY_TEXT,
+        RECORD_COUNTER,
+    };
 
     @Override
     public int run(String[] args)
@@ -104,6 +112,10 @@ public class Phase1FullJob
         FileOutputFormat.setCompressOutput(job, true);
         FileOutputFormat.setOutputCompressorClass(job, GzipCodec.class);
 
+        if (args.length < 2) {
+            throw new IllegalArgumentException(
+                    "Two command parameters required: input paths & output directory");
+        }
         FileInputFormat.addInputPaths(job, args[0]);
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
@@ -161,17 +173,19 @@ public class Phase1FullJob
          * @return true if ignored, false otherwise
          * @throws IOException I/O exception
          */
-        protected static boolean ignoreWARCRecord(WARCWritable value)
+        protected static boolean ignoreWARCRecord(Context context, WARCWritable value)
                 throws IOException
         {
             // avoid documents bigger than 10 MB as in ClueWeb12
             int contentLength = value.getRecord().getHeader().getContentLength();
             if (contentLength >= 10000000) {
+                context.getCounter(C4_COUNTER.TOO_BIG).increment(1);
                 return true;
             }
 
             // we're only interested in processing the responses, not requests or metadata
             if (!value.getRecord().isContentApplicationHttpResponse()) {
+                context.getCounter(C4_COUNTER.NOT_HTTP_RESPONSE).increment(1);
                 return true;
             }
 
@@ -185,6 +199,7 @@ public class Phase1FullJob
 
             String contentType = WARCRecord.extractHTTPHeaderContentType(httpHeaderText);
             if (!ALLOWED_CONTENT_TYPES.contains(contentType)) {
+                context.getCounter(C4_COUNTER.WRONG_CONTENT_TYPE).increment(1);
                 return true;
             }
 
@@ -216,7 +231,7 @@ public class Phase1FullJob
                 throws IOException, InterruptedException
         {
             // check first if it's worth processing
-            if (ignoreWARCRecord(value)) {
+            if (ignoreWARCRecord(context, value)) {
                 return;
             }
 
@@ -237,6 +252,7 @@ public class Phase1FullJob
 
             // skip empty documents
             if (plainText.isEmpty()) {
+                context.getCounter(C4_COUNTER.EMPTY_TEXT).increment(1);
                 return;
             }
 
