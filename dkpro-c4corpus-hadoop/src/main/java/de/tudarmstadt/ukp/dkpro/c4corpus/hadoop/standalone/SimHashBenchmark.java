@@ -6,7 +6,6 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.IntSummaryStatistics;
 import java.util.Iterator;
@@ -14,12 +13,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.function.ToIntFunction;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import org.apache.hadoop.conf.Configuration;
@@ -408,11 +401,11 @@ public class SimHashBenchmark
         }
         
         int[] counts = hashCounts.keys().entrySet().parallelStream().mapToInt(Multiset.Entry<String>::getCount).toArray();
-        IntAccumulator stats = hashCounts.keys().entrySet().parallelStream()
-                .collect(IntAccumulator.summarizingIntStdDev(Multiset.Entry<String>::getCount));
+        IntSummaryStatistics stats = hashCounts.keys().entrySet().parallelStream()
+                .collect(Collectors.summarizingInt(Multiset.Entry<String>::getCount));
         System.out.printf(
-                "Old hash slice counts - avg = %.1f, stddev=%.3f (%.3f), min = %d, max = %d, number of slices = %d%n",
-                stats.getAverage(), stats.getSampleStdDev(), stddev(counts), stats.getMin(),
+                "Old hash slice counts - avg = %.1f, stddev=%.3f, min = %d, max = %d, number of slices = %d%n",
+                stats.getAverage(), stddev(counts), stats.getMin(),
                 stats.getMax(), stats.getCount());
     }
 
@@ -425,11 +418,11 @@ public class SimHashBenchmark
         }
         
         int[] counts = hashCounts2.keys().entrySet().parallelStream().mapToInt(Multiset.Entry<Long>::getCount).toArray();
-        IntAccumulator stats = hashCounts2.keys().entrySet().parallelStream()
-                .collect(IntAccumulator.summarizingIntStdDev(Multiset.Entry<Long>::getCount));
+        IntSummaryStatistics stats = hashCounts2.keys().entrySet().parallelStream()
+                .collect(Collectors.summarizingInt(Multiset.Entry<Long>::getCount));
         System.out.printf(
-                "New hash slice counts - avg = %.1f, stddev=%.3f (%.3f), min = %d, max = %d, number of slices = %d%n",
-                stats.getAverage(), stats.getSampleStdDev(), stddev(counts), stats.getMin(),
+                "New hash slice counts - avg = %.1f, stddev=%.3f, min = %d, max = %d, number of slices = %d%n",
+                stats.getAverage(), stddev(counts), stats.getMin(),
                 stats.getMax(), stats.getCount());
     }
     
@@ -495,151 +488,5 @@ public class SimHashBenchmark
         }
 
     }
-    
-    /**
-     * Online accumulator which extends the Java 8 IntSummaryStatistics class
-     * to also do variance and standard deviation using Welford's algorithm.
-     * 
-     * @author Tom Morris <tfmorris@gmail.com>
-     *
-     */
-    static class IntAccumulator extends IntSummaryStatistics {
-        private double mean = 0.0; // our online mean estimate
-        private double m2 = 0.0;
-
-        @Override
-        public void accept(int value)
-        {
-            super.accept(value);
-            double delta = value - mean;
-            mean += delta / this.getCount(); // getCount() too inefficient?
-            m2 += delta * (value - mean);
-        }
-
-        @Override
-        public void combine(IntSummaryStatistics other) {
-            // TODO: What's the right answer here? Just throw or attempt to cast?
-            combine((IntAccumulator) other);
-        };
-
-        public void combine(IntAccumulator other)
-        {
-            long count = getCount(); // get the old count before we combined
-            long otherCount = other.getCount();
-            double totalCount = count + otherCount;
-            super.combine(other);
-            // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
-            double delta = other.getMeanEstimate() - mean;
-//            mean += delta * (otherCount / totalCount);
-            mean = (mean * count + other.getMeanEstimate() * otherCount) / totalCount;
-            m2 += other.getSquareSum() + ((delta * delta) * count * otherCount / totalCount);
-        }
-
-        private double getSquareSum()
-        {
-            return m2;
-        }
-
-        /**
-         * Returns the online version of the mean which may be less accurate,
-         * but won't overflow like the version kept by {@link #getAverage()}.
-         * 
-         * @return 
-         */
-        public double getMeanEstimate() {
-            return mean;
-        }
-
-        public double getSampleVariance() {
-            long count = getCount();
-            if (count < 2) {
-                return 0.0;
-            } else {
-                return m2 / (getCount() - 1); // sample variance N-1
-            }
-        }
-
-        public double getSampleStdDev() {
-            return Math.sqrt(getSampleVariance());
-        }
-
-        public static <T>
-        Collector<T, ?, IntAccumulator> summarizingIntStdDev(ToIntFunction<? super T> mapper) {
-            return new CollectorImpl<T, IntAccumulator, IntAccumulator>(
-                    IntAccumulator::new,
-                    (r, t) -> r.accept(mapper.applyAsInt(t)),
-                    (l, r) -> { l.combine(r); return l; }, CollectorImpl.CH_ID);
-    }
-
-    }
-    
-    /**
-     * Private copy of {@link Collectors.CollectorImpl} that we can use to get
-     * around visibility restrictions.
-     *
-     * @param <T>
-     * @param <A>
-     * @param <R>
-     */
-    static class CollectorImpl<T, A, R> implements Collector<T, A, R> {
-        static final Set<Collector.Characteristics> CH_ID
-        = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH));
-
-        private final Supplier<A> supplier;
-        private final BiConsumer<A, T> accumulator;
-        private final BinaryOperator<A> combiner;
-        private final Function<A, R> finisher;
-        private final Set<Characteristics> characteristics;
-
-        CollectorImpl(Supplier<A> supplier,
-                      BiConsumer<A, T> accumulator,
-                      BinaryOperator<A> combiner,
-                      Function<A,R> finisher,
-                      Set<Characteristics> characteristics) {
-            this.supplier = supplier;
-            this.accumulator = accumulator;
-            this.combiner = combiner;
-            this.finisher = finisher;
-            this.characteristics = characteristics;
-        }
-
-        CollectorImpl(Supplier<A> supplier,
-                      BiConsumer<A, T> accumulator,
-                      BinaryOperator<A> combiner,
-                      Set<Characteristics> characteristics) {
-            this(supplier, accumulator, combiner, castingIdentity(), characteristics);
-        }
-
-        @Override
-        public BiConsumer<A, T> accumulator() {
-            return accumulator;
-        }
-
-        @Override
-        public Supplier<A> supplier() {
-            return supplier;
-        }
-
-        @Override
-        public BinaryOperator<A> combiner() {
-            return combiner;
-        }
-
-        @Override
-        public Function<A, R> finisher() {
-            return finisher;
-        }
-
-        @Override
-        public Set<Characteristics> characteristics() {
-            return characteristics;
-        }
-        
-        @SuppressWarnings("unchecked")
-        private static <I, R> Function<I, R> castingIdentity() {
-            return i -> (R) i;
-        }
-    }
-
 
 }
