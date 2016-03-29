@@ -37,8 +37,8 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<!-- AWS EMR is 2.6, so is our cluster -->
-		<hadoop.version>2.6.0</hadoop.version>
+		<!-- AWS EMR made Hadoop 2.7.1 available in Jan 2016 -->
+		<hadoop.version>2.7.1</hadoop.version>
 		<!-- Apache Commons version should be consistent with the one used in hadoop -->
 		<commons.version>2.4</commons.version>
 	</properties>
@@ -100,7 +100,6 @@
 				<artifactId>jsoup</artifactId>
 				<version>1.8.3</version>
 			</dependency>
-
 			<!-- Guava is used in two modules -->
 			<dependency>
 				<groupId>com.google.guava</groupId>
