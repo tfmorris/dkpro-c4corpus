@@ -22,6 +22,7 @@ import de.tudarmstadt.ukp.dkpro.c4corpus.boilerplate.impl.JusTextBoilerplateRemo
 import de.tudarmstadt.ukp.dkpro.c4corpus.deduplication.impl.SimHashUtils;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.CharsetDetector;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.LanguageIdentifier;
+import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.deduplication.DocumentInfo;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.impl.CybozuLanguageIdentifier;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.impl.ICUCharsetDetectorWrapper;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.io.WARCInputFormat;
@@ -34,25 +35,30 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
-import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.compress.GzipCodec;
-import org.apache.hadoop.io.compress.SnappyCodec;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.MultipleOutputs;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -72,11 +78,16 @@ public class Phase1FullJob
 {
     public static enum C4_COUNTER
     {
-        TOO_BIG,
-        NOT_HTTP_RESPONSE,
-        WRONG_CONTENT_TYPE,
-        EMPTY_TEXT,
-        RECORD_COUNTER,
+        WARC_RESPONSE_TOO_BIG,
+        WARC_NOT_HTTP_RESPONSE,
+        WARC_WRONG_CONTENT_TYPE,
+        WARC_EMPTY_TEXT,
+        WARC_OUTPUT_RECORDS,
+        SIMHASH_HASH_DIFFERENT_LANGUAGE,
+        SIMHASH_EXACT_DUPLICATE,
+        SIMHASH_NEAR_DUPLICATE,
+        SIMHASH_UNIQ_SLICES,
+        SIMHASH_CANDIDATE_NOT_DUPLICATE,
     };
 
     @Override
@@ -92,25 +103,23 @@ public class Phase1FullJob
         // mapper
         job.setMapperClass(MapperClass.class);
 
-        // we will compress the mapper's output (use fast Snappy compressor)
-        job.getConfiguration().setBoolean(Job.MAP_OUTPUT_COMPRESS, true);
-        job.getConfiguration()
-                .setClass(Job.MAP_OUTPUT_COMPRESS_CODEC, SnappyCodec.class, CompressionCodec.class);
-
         // reducer
-        job.setReducerClass(SimpleWarcWriterReducer.class);
+        job.setReducerClass(SimhashSimilarityReducer.class);
 
         // input-output is warc
         job.setInputFormatClass(WARCInputFormat.class);
-        job.setOutputFormatClass(WARCOutputFormat.class);
+        job.setOutputFormatClass(TextOutputFormat.class);
 
         // mapper output data
-        job.setMapOutputKeyClass(IntWritable.class);
-        job.setMapOutputValueClass(WARCWritable.class);
+        job.setMapOutputKeyClass(LongWritable.class);
+        job.setMapOutputValueClass(Text.class);
 
         // set output compression to GZip
         FileOutputFormat.setCompressOutput(job, true);
         FileOutputFormat.setOutputCompressorClass(job, GzipCodec.class);
+
+        // Side channel (non-reducer) output for mapper to write text-only WARC to
+        MultipleOutputs.addNamedOutput(job, "textWARC", WARCOutputFormat.class, NullWritable.class, WARCWritable.class);
 
         if (args.length < 2) {
             throw new IllegalArgumentException(
@@ -129,7 +138,7 @@ public class Phase1FullJob
     }
 
     public static class MapperClass
-            extends Mapper<LongWritable, WARCWritable, IntWritable, WARCWritable>
+            extends Mapper<LongWritable, WARCWritable, LongWritable, Text>
     {
 
         private final static CharsetDetector CHARSET_DETECTOR = new ICUCharsetDetectorWrapper();
@@ -153,12 +162,14 @@ public class Phase1FullJob
 
         // mapper parameter
         private boolean keepMinimalHTML;
+        private MultipleOutputs<LongWritable, Text> mos;
 
         @Override
         protected void setup(Context context)
                 throws IOException, InterruptedException
         {
             super.setup(context);
+            mos = new MultipleOutputs<LongWritable, Text>(context);
 
             // parametrize the mapper
             this.keepMinimalHTML = context.getConfiguration()
@@ -179,13 +190,13 @@ public class Phase1FullJob
             // avoid documents bigger than 10 MB as in ClueWeb12
             int contentLength = value.getRecord().getHeader().getContentLength();
             if (contentLength >= 10000000) {
-                context.getCounter(C4_COUNTER.TOO_BIG).increment(1);
+                context.getCounter(C4_COUNTER.WARC_RESPONSE_TOO_BIG).increment(1);
                 return true;
             }
 
             // we're only interested in processing the responses, not requests or metadata
             if (!value.getRecord().isContentApplicationHttpResponse()) {
-                context.getCounter(C4_COUNTER.NOT_HTTP_RESPONSE).increment(1);
+                context.getCounter(C4_COUNTER.WARC_NOT_HTTP_RESPONSE).increment(1);
                 return true;
             }
 
@@ -199,7 +210,7 @@ public class Phase1FullJob
 
             String contentType = WARCRecord.extractHTTPHeaderContentType(httpHeaderText);
             if (!ALLOWED_CONTENT_TYPES.contains(contentType)) {
-                context.getCounter(C4_COUNTER.WRONG_CONTENT_TYPE).increment(1);
+                context.getCounter(C4_COUNTER.WARC_WRONG_CONTENT_TYPE).increment(1);
                 return true;
             }
 
@@ -252,7 +263,7 @@ public class Phase1FullJob
 
             // skip empty documents
             if (plainText.isEmpty()) {
-                context.getCounter(C4_COUNTER.EMPTY_TEXT).increment(1);
+                context.getCounter(C4_COUNTER.WARC_EMPTY_TEXT).increment(1);
                 return;
             }
 
@@ -296,15 +307,19 @@ public class Phase1FullJob
             byte[] plainTextBytes = plainText.getBytes(UTF8_CHARSET);
             header.setField("Content-Length", String.valueOf(plainTextBytes.length));
 
-            // create random hash from docSimHash which breaks the hamming distance
-            // never use NullWritable as output key!
-            // https://support.pivotal.io/hc/en-us/articles/202810986-Mapper-output-key-
-            // value-NullWritable-can-cause-reducer-phase-to-move-slowly
-            int randomHash = String.valueOf(docSimHash).hashCode() % 1000;
+            // Our primary output (although smaller in size) goes to the primary output so it gets
+            // fed to the reducers
+            String metadata = new DocumentInfo(header.getRecordID(), plainTextBytes.length,
+                    docSimHash, language).toString();
+            for (long slice : SimHashUtils.sliceHash(docSimHash)) {
+                context.write(new LongWritable(slice), new Text(metadata));
+            }
 
-            // create prefix as a key
-            context.write(new IntWritable(randomHash), value);
+            // Our text-only WARC goes to a non-reduce mapper output on the side
+            String baseName = inputSplit.getPath().getName().replace(".warc.gz", "");
+            mos.write("textWARC",NullWritable.get(), value, baseName);
 
+            context.getCounter(C4_COUNTER.WARC_OUTPUT_RECORDS).increment(1);
             // collect some stats to logs
             recordCounter++;
             sizeCounter += plainText.length();
@@ -313,20 +328,99 @@ public class Phase1FullJob
                         recordCounter, sizeCounter));
             }
         }
+
+        @Override
+        protected void cleanup(
+                Mapper<LongWritable, WARCWritable, LongWritable, Text>.Context context)
+            throws IOException, InterruptedException
+        {
+            mos.close();
+            super.cleanup(context);
+        }
     }
 
     /**
-     * Keeps only values
+     * Coalesce hashes with matching slices
      */
-    public static class SimpleWarcWriterReducer
-            extends Reducer<IntWritable, WARCWritable, NullWritable, WARCWritable>
+    public static class SimhashSimilarityReducer
+        extends Reducer<LongWritable, Text, LongWritable, Text>
     {
         @Override
-        protected void reduce(IntWritable key, Iterable<WARCWritable> values, Context context)
-                throws IOException, InterruptedException
+        protected void reduce(LongWritable key, Iterable<Text> values, Context context)
+            throws IOException, InterruptedException
         {
-            for (WARCWritable warcWritable : values) {
-                context.write(NullWritable.get(), warcWritable);
+            // Collect all docs with same Simhash slice value (our key)
+            List<DocumentInfo> docs = new ArrayList<DocumentInfo>();
+            for (Text docString : values) {
+                DocumentInfo doc = new DocumentInfo(docString.toString());
+                docs.add(doc);
+            }
+
+            // Sort by full Simhash value and descending size
+            Collections.sort(docs, new Comparator<DocumentInfo>()
+            {
+                @Override
+                public int compare(DocumentInfo o1, DocumentInfo o2)
+                {
+                    if (o1.getDocSimHash() == o2.getDocSimHash()) {
+                        // biggest first
+                        return o2.getDocLength().compareTo(o1.getDocLength());
+                    }
+                    else {
+                        return o1.getDocSimHash().compareTo(o2.getDocSimHash());
+                    }
+                }
+            });
+
+            // Remove all exact matches and non-candidates so we don't need to consider them in the
+            // O(n^2) phase
+            DocumentInfo head = null;
+            long headHash = 0;
+            Iterator<DocumentInfo> docIterator = docs.iterator();
+            while (docIterator.hasNext()) {
+                DocumentInfo doc = docIterator.next();
+                if (head == null || !doc.getDocSimHash().equals(head.getDocSimHash())) {
+                    head = doc;
+                    headHash = doc.getDocSimHash().get();
+                    context.getCounter(C4_COUNTER.SIMHASH_UNIQ_SLICES).increment(1);
+                }
+                else if (!doc.getDocLang().equals(head.getDocLang())) {
+                    context.getCounter(C4_COUNTER.SIMHASH_HASH_DIFFERENT_LANGUAGE).increment(1);
+                    docIterator.remove();
+                }
+                else if (doc.getDocSimHash().get() == headHash) {
+                    context.getCounter(C4_COUNTER.SIMHASH_EXACT_DUPLICATE).increment(1);
+                    context.write(doc.getDocSimHash(),
+                            new Text("exact|" + head.toString() + "|" + doc.toString()));
+                    docIterator.remove();
+                }
+            }
+
+            // Pairwise comparison O(n^2) of similarity for remaining candidates
+            for (int i = 0; i < docs.size(); i++) {
+                head = docs.get(i);
+                headHash = head.getDocSimHash().get();
+                // TODO: Handle scanning duplicates multiple times?
+                for (int j = i + 1; j < docs.size(); j++) {
+                    DocumentInfo doc = docs.get(j);
+                    long hammingDist = Long.bitCount(doc.getDocSimHash().get() ^ headHash);
+                    if (hammingDist < SimHashUtils.HAMMING_DISTANCE_THRESHOLD) {
+                        // TODO: Do we want to consider length and disqualify near matches with very
+                        // different lengths?
+                        context.getCounter(C4_COUNTER.SIMHASH_NEAR_DUPLICATE).increment(1);
+                        String output = String.format("near%3d|%s|%s", hammingDist, head.toString(),
+                                doc.toString());
+                        // TODO: Do we want to split output to separate files by match type?
+                        context.write(doc.getDocSimHash(), new Text(output));
+                    }
+                    else {
+                        context.getCounter(C4_COUNTER.SIMHASH_CANDIDATE_NOT_DUPLICATE).increment(1);
+                        // We output these for statistical purposes, but this can be skipped
+                        String output = String.format("nomatch%3d|%s|%s", hammingDist,
+                                head.toString(), doc.toString());
+                        context.write(doc.getDocSimHash(), new Text(output));
+                    }
+                }
             }
         }
     }
