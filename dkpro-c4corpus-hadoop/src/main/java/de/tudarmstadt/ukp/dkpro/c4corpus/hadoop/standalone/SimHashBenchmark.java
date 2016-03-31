@@ -450,7 +450,10 @@ public class SimHashBenchmark
         String testFilename = "/Users/tfmorris/Downloads/commoncrawl/crawls/CC-MAIN-2015-40/CC-MAIN-20151124205408-00105-ip-10-71-132-137.ec2.internal.warc.gz";
         if (args.length < 1 || args[0] == null) {
             System.out.println("No input test filename - using default");
+        } else {
+            testFilename = args[0];
         }
+        System.out.println("Input file: " + testFilename);
 
         timeTextProcessing(testFilename);
     }
