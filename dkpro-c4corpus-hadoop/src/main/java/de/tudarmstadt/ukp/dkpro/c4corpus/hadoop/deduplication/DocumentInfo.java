@@ -55,7 +55,7 @@ public class DocumentInfo
      * @param lang language
      */
     public DocumentInfo(String docID, int length, long hash, String lang) {
-        this.docID = new Text();
+        this.docID = new Text(docID);
         this.docLength = new IntWritable(length);
         this.docSimHash = new LongWritable(hash);
         this.language = new Text(lang);
