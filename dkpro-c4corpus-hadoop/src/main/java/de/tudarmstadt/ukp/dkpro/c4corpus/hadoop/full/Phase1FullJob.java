@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -78,17 +79,26 @@ public class Phase1FullJob
 {
     public static enum C4_COUNTER
     {
-        WARC_RESPONSE_TOO_BIG,
-        WARC_NOT_HTTP_RESPONSE,
-        WARC_WRONG_CONTENT_TYPE,
-        WARC_EMPTY_TEXT,
-        WARC_OUTPUT_RECORDS,
-        SIMHASH_HASH_DIFFERENT_LANGUAGE,
-        SIMHASH_EXACT_DUPLICATE,
-        SIMHASH_NEAR_DUPLICATE,
-        SIMHASH_UNIQ_SLICES,
-        SIMHASH_CANDIDATE_NOT_DUPLICATE,
+        M1_WARC_NOT_HTTP_RESPONSE,
+        M2_WARC_RESPONSE_TOO_BIG,
+        M3_WARC_WRONG_CONTENT_TYPE,
+        M4_WARC_EMPTY_TEXT,
+        M5_WARC_OUTPUT_RECORDS,
+        R_SIMHASH_HASH_DIFFERENT_LANGUAGE,
+        R_SIMHASH_EXACT_DUPLICATE,
+        R_SIMHASH_NEAR_DUPLICATE,
+        R_SIMHASH_CANDIDATE_NOT_DUPLICATE,
+        R_SIMHASH_NEAR_DUPLICATE_DIFF_LANG,
+        R_SIMHASH_HASH_DIFFERENT_LENGTH,
+        R_SIMHASH_COMPARISONS,
     };
+
+    public static enum C4_HAMMING_DIST
+    {
+        D00, D01, D02, D03, D04, D05, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17, D18, D19, D20, D21, D22, D23, D24, D25, D26, D27, D28, D29, D30, D31, D32
+    }
+
+    public static C4_HAMMING_DIST[] HAMMING_ENUMS = C4_HAMMING_DIST.values();
 
     @Override
     public int run(String[] args)
@@ -190,6 +200,7 @@ public class Phase1FullJob
             // avoid documents bigger than 10 MB as in ClueWeb12
             int contentLength = value.getRecord().getHeader().getContentLength();
             if (contentLength >= 10000000) {
+                // This never gets triggered because CommonCrawl caps at 1 MB currently
                 context.getCounter(C4_COUNTER.WARC_RESPONSE_TOO_BIG).increment(1);
                 return true;
             }
@@ -210,7 +221,7 @@ public class Phase1FullJob
 
             String contentType = WARCRecord.extractHTTPHeaderContentType(httpHeaderText);
             if (!ALLOWED_CONTENT_TYPES.contains(contentType)) {
-                context.getCounter(C4_COUNTER.WARC_WRONG_CONTENT_TYPE).increment(1);
+                context.getCounter(C4_COUNTER.M3_WARC_WRONG_CONTENT_TYPE).increment(1);
                 return true;
             }
 
@@ -263,7 +274,7 @@ public class Phase1FullJob
 
             // skip empty documents
             if (plainText.isEmpty()) {
-                context.getCounter(C4_COUNTER.WARC_EMPTY_TEXT).increment(1);
+                context.getCounter(C4_COUNTER.M4_WARC_EMPTY_TEXT).increment(1);
                 return;
             }
 
@@ -319,7 +330,7 @@ public class Phase1FullJob
             String baseName = inputSplit.getPath().getName().replace(".warc.gz", "");
             mos.write("textWARC",NullWritable.get(), value, baseName);
 
-            context.getCounter(C4_COUNTER.WARC_OUTPUT_RECORDS).increment(1);
+            context.getCounter(C4_COUNTER.M5_WARC_OUTPUT_RECORDS).increment(1);
             // collect some stats to logs
             recordCounter++;
             sizeCounter += plainText.length();
@@ -379,17 +390,23 @@ public class Phase1FullJob
             Iterator<DocumentInfo> docIterator = docs.iterator();
             while (docIterator.hasNext()) {
                 DocumentInfo doc = docIterator.next();
-                if (head == null || !doc.getDocSimHash().equals(head.getDocSimHash())) {
+                if (head == null || doc.getDocSimHash().get() != headHash) {
                     head = doc;
                     headHash = doc.getDocSimHash().get();
-                    context.getCounter(C4_COUNTER.SIMHASH_UNIQ_SLICES).increment(1);
                 }
                 else if (!doc.getDocLang().equals(head.getDocLang())) {
-                    context.getCounter(C4_COUNTER.SIMHASH_HASH_DIFFERENT_LANGUAGE).increment(1);
+                    // False positive due to hash collision
+                    context.getCounter(C4_COUNTER.R_SIMHASH_HASH_DIFFERENT_LANGUAGE).increment(1);
+                    docIterator.remove();
+                }
+                else if (!doc.getDocLength().equals(head.getDocLength())) {
+                    // False positive due to hash collision
+                    context.getCounter(C4_COUNTER.R_SIMHASH_HASH_DIFFERENT_LENGTH).increment(1);
                     docIterator.remove();
                 }
                 else if (doc.getDocSimHash().get() == headHash) {
-                    context.getCounter(C4_COUNTER.SIMHASH_EXACT_DUPLICATE).increment(1);
+                    context.getCounter(C4_COUNTER.R_SIMHASH_EXACT_DUPLICATE).increment(1);
+                    // TODO: Do we want to split output to separate files by match type?
                     context.write(doc.getDocSimHash(),
                             new Text("exact|" + head.toString() + "|" + doc.toString()));
                     docIterator.remove();
@@ -397,31 +414,50 @@ public class Phase1FullJob
             }
 
             // Pairwise comparison O(n^2) of similarity for remaining candidates
+            BitSet duplicates = new BitSet(docs.size());
+            long comparisons = 0;
             for (int i = 0; i < docs.size(); i++) {
+                if (duplicates.get(i)) {
+                    continue; // already a duplicate - no need to process again
+                }
                 head = docs.get(i);
                 headHash = head.getDocSimHash().get();
                 // TODO: Handle scanning duplicates multiple times?
                 for (int j = i + 1; j < docs.size(); j++) {
+                    if (duplicates.get(i)) {
+                        continue;
+                    }
                     DocumentInfo doc = docs.get(j);
-                    long hammingDist = Long.bitCount(doc.getDocSimHash().get() ^ headHash);
+                    int hammingDist = Long.bitCount(doc.getDocSimHash().get() ^ headHash);
+                    comparisons++;
                     if (hammingDist < SimHashUtils.HAMMING_DISTANCE_THRESHOLD) {
+                        // Skip if it has a different language (false positive)
+                        if (!doc.getDocLang().equals(head.getDocLang())) {
+                            context.getCounter(C4_COUNTER.R_SIMHASH_NEAR_DUPLICATE_DIFF_LANG)
+                                    .increment(1);
+                            continue;
+                        }
+
                         // TODO: Do we want to consider length and disqualify near matches with very
                         // different lengths?
-                        context.getCounter(C4_COUNTER.SIMHASH_NEAR_DUPLICATE).increment(1);
+
+                        duplicates.set(j);
+                        context.getCounter(C4_COUNTER.R_SIMHASH_NEAR_DUPLICATE).increment(1);
                         String output = String.format("near%3d|%s|%s", hammingDist, head.toString(),
                                 doc.toString());
                         // TODO: Do we want to split output to separate files by match type?
                         context.write(doc.getDocSimHash(), new Text(output));
                     }
                     else {
-                        context.getCounter(C4_COUNTER.SIMHASH_CANDIDATE_NOT_DUPLICATE).increment(1);
-                        // We output these for statistical purposes, but this can be skipped
-                        String output = String.format("nomatch%3d|%s|%s", hammingDist,
-                                head.toString(), doc.toString());
-                        context.write(doc.getDocSimHash(), new Text(output));
+                        context.getCounter(C4_COUNTER.R_SIMHASH_CANDIDATE_NOT_DUPLICATE).increment(1);
+                        // Keep histogram of Hamming distances 
+                        if (hammingDist < HAMMING_ENUMS.length) {
+                            context.getCounter(HAMMING_ENUMS[hammingDist]).increment(1);
+                        }
                     }
                 }
             }
+            context.getCounter(C4_COUNTER.R_SIMHASH_COMPARISONS).increment(comparisons);
         }
     }
 }
