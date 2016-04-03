@@ -79,8 +79,8 @@ public class Phase1FullJob
 {
     public static enum C4_COUNTER
     {
-        M1_WARC_NOT_HTTP_RESPONSE,
-        M2_WARC_RESPONSE_TOO_BIG,
+        M1_WARC_RESPONSE_TOO_BIG,
+        M2_WARC_NOT_HTTP_RESPONSE,
         M3_WARC_WRONG_CONTENT_TYPE,
         M4_WARC_EMPTY_TEXT,
         M5_WARC_OUTPUT_RECORDS,
@@ -111,7 +111,7 @@ public class Phase1FullJob
         job.setJobName(Phase1FullJob.class.getName());
 
         // mapper
-        job.setMapperClass(MapperClass.class);
+        job.setMapperClass(WARCToTextMapper.class);
 
         // reducer
         job.setReducerClass(SimhashSimilarityReducer.class);
@@ -147,7 +147,7 @@ public class Phase1FullJob
         ToolRunner.run(new Phase1FullJob(), args);
     }
 
-    public static class MapperClass
+    public static class WARCToTextMapper
             extends Mapper<LongWritable, WARCWritable, LongWritable, Text>
     {
 
@@ -161,7 +161,7 @@ public class Phase1FullJob
         private long sizeCounter = 0;
 
         // logger
-        private static final Log LOG = LogFactory.getLog(MapperClass.class);
+        private static final Log LOG = LogFactory.getLog(WARCToTextMapper.class);
 
         // utf-8 charset
         private static final Charset UTF8_CHARSET = Charset.forName("utf-8");
@@ -173,15 +173,17 @@ public class Phase1FullJob
         // mapper parameter
         private boolean keepMinimalHTML;
         private MultipleOutputs<LongWritable, Text> mos;
+        private long startTime;
 
         @Override
         protected void setup(Context context)
                 throws IOException, InterruptedException
         {
             super.setup(context);
+            startTime = System.currentTimeMillis();
             mos = new MultipleOutputs<LongWritable, Text>(context);
 
-            // parametrize the mapper
+            // parameterize the mapper
             this.keepMinimalHTML = context.getConfiguration()
                     .getBoolean("c4corpus.keepminimalhtml", false);
         }
@@ -201,13 +203,13 @@ public class Phase1FullJob
             int contentLength = value.getRecord().getHeader().getContentLength();
             if (contentLength >= 10000000) {
                 // This never gets triggered because CommonCrawl caps at 1 MB currently
-                context.getCounter(C4_COUNTER.WARC_RESPONSE_TOO_BIG).increment(1);
+                context.getCounter(C4_COUNTER.M1_WARC_RESPONSE_TOO_BIG).increment(1);
                 return true;
             }
 
             // we're only interested in processing the responses, not requests or metadata
             if (!value.getRecord().isContentApplicationHttpResponse()) {
-                context.getCounter(C4_COUNTER.WARC_NOT_HTTP_RESPONSE).increment(1);
+                context.getCounter(C4_COUNTER.M2_WARC_NOT_HTTP_RESPONSE).increment(1);
                 return true;
             }
 
@@ -327,6 +329,7 @@ public class Phase1FullJob
             }
 
             // Our text-only WARC goes to a non-reduce mapper output on the side
+            // TODO: Add in segment directory
             String baseName = inputSplit.getPath().getName().replace(".warc.gz", "");
             mos.write("textWARC",NullWritable.get(), value, baseName);
 
@@ -347,6 +350,9 @@ public class Phase1FullJob
         {
             mos.close();
             super.cleanup(context);
+            long elapsedMillis = System.currentTimeMillis() - startTime;
+            LOG.info(String.format("Mapper complete - %d records totaling %.2f MB %.2f minutes",
+                    recordCounter, sizeCounter / 1000000., elapsedMillis / 1000. / 60));
         }
     }
 
@@ -356,15 +362,56 @@ public class Phase1FullJob
     public static class SimhashSimilarityReducer
         extends Reducer<LongWritable, Text, LongWritable, Text>
     {
+        private long keyCount = 0;
+        private long maxValues = 0;
+        private long maxValueKey = -1L;
+        private boolean keySeen = false;
+        private long totalComparisons = 0;
+        private long startTime;
+        private static final Log LOG = LogFactory.getLog(SimhashSimilarityReducer.class);
+
+        @Override
+        protected void setup(
+                org.apache.hadoop.mapreduce.Reducer<LongWritable, Text, LongWritable, Text>.Context context)
+            throws IOException, InterruptedException
+        {
+            super.setup(context);
+            LOG.info("Reducer setup starting");
+        };
+
+        @Override
+        protected void cleanup(
+                org.apache.hadoop.mapreduce.Reducer<LongWritable, Text, LongWritable, Text>.Context context)
+            throws IOException, InterruptedException
+        {
+            long elapsedMillis = System.currentTimeMillis() - startTime;
+            LOG.info(String.format(
+                    "Reducer complete - %d msec elapsed, key count=%d, max values = %d, key for max values = %d, total comparisons = %d",
+                    elapsedMillis, keyCount, maxValues, maxValueKey, totalComparisons));
+            super.cleanup(context);
+        };
+
         @Override
         protected void reduce(LongWritable key, Iterable<Text> values, Context context)
             throws IOException, InterruptedException
         {
+            keyCount++;
+            if (!keySeen) {
+                LOG.debug(String.format("First key seen - key=%d", maxValueKey));
+                keySeen = true;
+                startTime = System.currentTimeMillis();
+            }
+
             // Collect all docs with same Simhash slice value (our key)
             List<DocumentInfo> docs = new ArrayList<DocumentInfo>();
             for (Text docString : values) {
                 DocumentInfo doc = new DocumentInfo(docString.toString());
                 docs.add(doc);
+            }
+
+            if (docs.size() > maxValues) {
+                maxValues = docs.size();
+                maxValueKey = key.get();
             }
 
             // Sort by full Simhash value and descending size
@@ -458,6 +505,7 @@ public class Phase1FullJob
                 }
             }
             context.getCounter(C4_COUNTER.R_SIMHASH_COMPARISONS).increment(comparisons);
+            totalComparisons += comparisons;
         }
     }
 }
