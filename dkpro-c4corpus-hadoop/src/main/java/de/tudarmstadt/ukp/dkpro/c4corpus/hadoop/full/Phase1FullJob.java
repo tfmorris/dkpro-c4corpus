@@ -121,7 +121,7 @@ public class Phase1FullJob
         job.setOutputFormatClass(TextOutputFormat.class);
 
         // mapper output data
-        job.setMapOutputKeyClass(LongWritable.class);
+        job.setMapOutputKeyClass(LongWritable2.class);
         job.setMapOutputValueClass(Text.class);
 
         // set output compression to GZip
@@ -147,8 +147,40 @@ public class Phase1FullJob
         ToolRunner.run(new Phase1FullJob(), args);
     }
 
+    /**
+     * Our version of LongWritable with a new hashCode() implementation which
+     * produces less uneven output to reducers. Rather than just truncating to
+     * the lower order 32-bits, it folds the high & low 32-bits together and
+     * uses the combined value.
+     *
+     */
+    public static class LongWritable2 extends LongWritable {
+
+        public LongWritable2() {
+            super();
+        }
+
+        public LongWritable2(long value)
+        {
+            super(value);
+        }
+
+        /* (non-Javadoc)
+         * @see org.apache.hadoop.io.LongWritable#hashCode()
+         * 
+         * This implementation produces more balanced reducer load when 
+         * simhash slice has all the lower bits masked to zero.
+         */
+        @Override
+        public int hashCode()
+        {
+            Long value = super.get();
+            return (int) ((value & 0xffffffff) ^ (value >> 32));
+        }
+    }
+
     public static class WARCToTextMapper
-            extends Mapper<LongWritable, WARCWritable, LongWritable, Text>
+            extends Mapper<LongWritable, WARCWritable, LongWritable2, Text>
     {
 
         private final static CharsetDetector CHARSET_DETECTOR = new ICUCharsetDetectorWrapper();
@@ -172,7 +204,7 @@ public class Phase1FullJob
 
         // mapper parameter
         private boolean keepMinimalHTML;
-        private MultipleOutputs<LongWritable, Text> mos;
+        private MultipleOutputs<LongWritable2, Text> mos;
         private long startTime;
 
         @Override
@@ -181,7 +213,7 @@ public class Phase1FullJob
         {
             super.setup(context);
             startTime = System.currentTimeMillis();
-            mos = new MultipleOutputs<LongWritable, Text>(context);
+            mos = new MultipleOutputs<LongWritable2, Text>(context);
 
             // parameterize the mapper
             this.keepMinimalHTML = context.getConfiguration()
@@ -325,7 +357,7 @@ public class Phase1FullJob
             String metadata = new DocumentInfo(header.getRecordID(), plainTextBytes.length,
                     docSimHash, language).toString();
             for (long slice : SimHashUtils.sliceHash(docSimHash)) {
-                context.write(new LongWritable(slice), new Text(metadata));
+                context.write(new LongWritable2(slice), new Text(metadata));
             }
 
             // Our text-only WARC goes to a non-reduce mapper output on the side
@@ -345,7 +377,7 @@ public class Phase1FullJob
 
         @Override
         protected void cleanup(
-                Mapper<LongWritable, WARCWritable, LongWritable, Text>.Context context)
+                Mapper<LongWritable, WARCWritable, LongWritable2, Text>.Context context)
             throws IOException, InterruptedException
         {
             mos.close();
