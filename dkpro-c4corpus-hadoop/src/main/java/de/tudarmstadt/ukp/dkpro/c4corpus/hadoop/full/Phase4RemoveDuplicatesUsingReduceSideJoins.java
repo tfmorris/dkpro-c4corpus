@@ -164,6 +164,10 @@ public class Phase4RemoveDuplicatesUsingReduceSideJoins
                 throws IOException, InterruptedException
         {
 
+            // FIXME: Old input format was just a list of IDs, but the revised workflow
+            // outputs the ID as the key and the value is a descriptive string describing
+            // whether this is an exact match, close match, or non-match.
+            // Non-matches should be skipped and the others processed the same as before.
             String warcId = value.toString();
 
             CompositeKey compositeWARCKey = new CompositeKey();
