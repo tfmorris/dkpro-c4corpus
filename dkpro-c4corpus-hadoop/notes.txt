@@ -1,0 +1,140 @@
+Notes on improvements, experiments, things to be done, etc
+
+- more efficient Hamming distance calculation & move inline. It's used O(n^2)
+- 64-bit instead of 32-bit hash. old - Java hashcode(), first replacement FNVJ,
+  but not even enough. Second try FNV.
+- limit charset detector to first 8k bytes (correctness & efficiency)
+- only read WARC header before doing record type & length checks
+  
+  
+  
+- All Hamming distances are even and <= 32. Why? Still need better hash? ** INVESTIGATE **
+- Find more efficient WARC reader? Lemur Project, Java Web Archive Toolkit (JWAT), or iipc/webarchive-commons
+- Need segment ID in mapper output name
+
+First larger scale experiment
+-----------------------------
+GRRR - run with wrong crawl!! CC-MAIN-2015-27, not 2016-07
+400 files (~1%), 1 m3.xlarge master, 2 m3.xlarge core @$0.10, 4 x c3.8xlarge @ $0.40
+run time 2 hrs 19 min., 400 maps, 70 reducers, 
+Cost - us-east-1e - $8.95 total, $2.98/hr, m3.xlarge = $0.0381 spot max, c3.8xlarge = $0.3338
+
+Command line - de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob -D mapreduce.task.timeout=7200000 -D mapreduce.map.failures.maxpercent=5 -D mapreduce.map.maxattempts=2 -D c4corpus.keepminimalhtml=true s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2015-27/segments/*/warc/*-00[0-3]01-*.warc.gz s3://tfmorris/c4corpus/cc-phase1out-2016-07-1pct
+
+
+Start    05:33
+Map 100% 07:23:40
+Red.100% 07:25:54
+ (gap - S3 upload?)
+End      07:43:16
+
+reducer 0 generated 549MB output (vs <10MB for others) and ran 20 min vs 1 min for others
+
+Maps 376-379 output only 3MB. Inputs all ~1GB.
+https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031814-00301-ip-10-179-60-89.ec2.internal-m-00376.seg-00000.warc.gz
+https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031814-00101-ip-10-179-60-89.ec2.internal-m-00378.seg-00000.warc.gz
+https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031814-00201-ip-10-179-60-89.ec2.internal-m-00379.seg-00000.warc.gz
+372 8MB - https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031817-00201-ip-10-179-60-89.ec2.internal-m-00372.seg-00000.warc.gz
+373 8MB - https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031817-00101-ip-10-179-60-89.ec2.internal-m-00373.seg-00000.warc.gz
+374 8MB - https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031817-00001-ip-10-179-60-89.ec2.internal-m-00374.seg-00000.warc.gz
+375 7MB - https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031817-00301-ip-10-179-60-89.ec2.internal-m-00375.seg-00000.warc.gz
+368 28MB - https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031817-00101-ip-10-179-60-89.ec2.internal-m-00368.seg-00000.warc.gz
+369 27MB - https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031817-00001-ip-10-179-60-89.ec2.internal-m-00369.seg-00000.warc.gz
+ 
+
+Map 356 failed twice (permanent) 
+  file: s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2015-27/segments/1435375093899.18/warc/CC-MAIN-20150627031813-00201-ip-10-179-60-89.ec2.internal.warc.gz
+2016-04-03 06:50:59,141 INFO [main] de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$MapperClass: Processed 1000 records, total length 4167848 characters
+2016-04-03 06:51:26,214 INFO [main] de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$MapperClass: Processed 2000 records, total length 8596008 characters
+...
+2016-04-03 06:53:18,267 INFO [main] de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$MapperClass: Processed 6000 records, total length 24613681 characters
+2016-04-03 06:53:44,562 INFO [main] de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$MapperClass: Processed 7000 records, total length 28770330 characters
+[abort after 7k records]
+
+** INVESTIGATE MAP FAILURE with local copy of the file **
+Theory - WARCRecord reads entire record into memory when it should only read header before size check
+
+
+
+                FILE: Number of bytes written=6427027402
+                FILE: Number of read operations=0
+                FILE: Number of large read operations=0
+                FILE: Number of write operations=0
+                HDFS: Number of bytes read=90134
+                HDFS: Number of bytes written=0
+                HDFS: Number of read operations=399
+                HDFS: Number of large read operations=0
+                HDFS: Number of write operations=0
+                S3: Number of bytes read=  372380725845
+                S3: Number of bytes written=20989896179
+                S3: Number of read operations=0
+                S3: Number of large read operations=0
+                S3: Number of write operations=0
+        Job Counters 
+               *Failed map tasks=2*
+                Killed map tasks=8
+                Killed reduce tasks=1
+                Launched map tasks=409
+                Launched reduce tasks=72
+                Other local map tasks=1
+                Data-local map tasks=408
+                Total time spent by all maps in occupied slots (ms)=28288246950
+                Total time spent by all reduces in occupied slots (ms)=18706527810
+                Total time spent by all map tasks (ms)=   628627710 (174 hrs, avg 26m12s per map)
+                Total time spent by all reduce tasks (ms)=207850309
+                Total vcore-seconds taken by all map tasks=628627710
+                Total vcore-seconds taken by all reduce tasks=207850309
+                Total megabyte-seconds taken by all map tasks=905223902400
+                Total megabyte-seconds taken by all reduce tasks=598608889920
+        Map-Reduce Framework
+                Map input records= 64832529
+                Map output records=54752216
+                Map output bytes=4588970268
+                Map output materialized bytes=3394190271
+                Reduce input groups=255823
+                Reduce shuffle bytes=3394190271
+                Reduce input records=54752216
+                Reduce output records=30808334
+                Spilled Records=109504432
+                Shuffled Maps =28329
+                Merged Map outputs=28329
+                GC time elapsed (ms)=13061006
+                CPU time spent (ms)=578848380
+                Physical memory (bytes) snapshot=524065198080
+                Virtual memory (bytes) snapshot=1643861057536
+                Total committed heap usage (bytes)=523228938240
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_COUNTER
+                Map input records=                    64832529
+                M1_WARC_NOT_HTTP_RESPONSE=            43221819
+                M3_WARC_WRONG_CONTENT_TYPE=             666808
+                M4_WARC_EMPTY_TEXT=                    7255848
+                M5_WARC_OUTPUT_RECORDS=               13688054 (21% of input)
+                Map output records (4x slices) =      54752216
+ (all reducer counts, except total comparisons, are double counted by up to 4x)
+                R_SIMHASH_CANDIDATE_NOT_DUPLICATE= 19259842231
+                R_SIMHASH_COMPARISONS=             19271582261 (19.3B)
+                R_SIMHASH_EXACT_DUPLICATE=            19560389
+                R_SIMHASH_HASH_DIFFERENT_LANGUAGE=      365369
+                R_SIMHASH_HASH_DIFFERENT_LENGTH=       9213563
+                R_SIMHASH_NEAR_DUPLICATE=             11247945
+                R_SIMHASH_NEAR_DUPLICATE_DIFF_LANG=     492085
+        Phase1FullJob$C4_HAMMING_DIST (Histogram of Hamming distance)
+                D04=  67939014 (why all even?)
+                D06= 263119484
+                D08= 741747843
+                D10=1593646977
+                D12=2668311135
+                D14=3529389267
+                D16=3701571963
+                D18=3082943862
+                D20=2024420469
+                D22=1037517297
+                D24= 405567292
+                D26= 117105572
+                D28=  23464916
+                D30=   2926273
+                D32=    170214 (why nothing greater than 32?)
+        File Input Format Counters 
+                Bytes Read=372380725845 (372 GB)
+        File Output Format Counters 
+                Bytes Written=1136452944 (1.1 GB) 
