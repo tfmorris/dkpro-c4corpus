@@ -28,9 +28,12 @@ Red.100% 07:25:54
  (gap - S3 upload?)
 End      07:43:16
 
-reducer 0 generated 549MB output (vs <10MB for others) and ran 20 min vs 1 min for others
 
-Maps 376-379 output only 3MB. Inputs all ~1GB.
+
+** reducer 0 generated 549MB output (vs <10MB for others) and ran 20 min vs 1 min for others
+[Caused by LongWritable.hashcode() being (int)value for simhash, truncating high order 32 bits]
+
+**Maps 376-379 output only 3MB. Inputs all ~1GB.
 https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031814-00301-ip-10-179-60-89.ec2.internal-m-00376.seg-00000.warc.gz
 https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031814-00101-ip-10-179-60-89.ec2.internal-m-00378.seg-00000.warc.gz
 https://s3.amazonaws.com/tfmorris/c4corpus/cc-phase1out-2016-07-1pct/CC-MAIN-20150627031814-00201-ip-10-179-60-89.ec2.internal-m-00379.seg-00000.warc.gz
@@ -53,8 +56,7 @@ Map 356 failed twice (permanent)
 
 ** INVESTIGATE MAP FAILURE with local copy of the file **
 Theory - WARCRecord reads entire record into memory when it should only read header before size check
-
-
+[Actually a deeply nested HTML doc (SQL stack trace from server) which triggered O(n!) in nesting levels behavior of boilerplate]
 
                 FILE: Number of bytes written=6427027402
                 FILE: Number of read operations=0
@@ -80,7 +82,7 @@ Theory - WARCRecord reads entire record into memory when it should only read hea
                 Data-local map tasks=408
                 Total time spent by all maps in occupied slots (ms)=28288246950
                 Total time spent by all reduces in occupied slots (ms)=18706527810
-                Total time spent by all map tasks (ms)=   628627710 (174 hrs, avg 26m12s per map)
+                Total time spent by all map tasks (ms)=   628627710 (174 hrs, avg 25m30s per map)
                 Total time spent by all reduce tasks (ms)=207850309
                 Total vcore-seconds taken by all map tasks=628627710
                 Total vcore-seconds taken by all reduce tasks=207850309
@@ -104,16 +106,16 @@ Theory - WARCRecord reads entire record into memory when it should only read hea
                 Virtual memory (bytes) snapshot=1643861057536
                 Total committed heap usage (bytes)=523228938240
         de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_COUNTER
-                Map input records=                    64832529
+                Map input records=                    64832529 (64.8M)
                 M1_WARC_NOT_HTTP_RESPONSE=            43221819
                 M3_WARC_WRONG_CONTENT_TYPE=             666808
                 M4_WARC_EMPTY_TEXT=                    7255848
-                M5_WARC_OUTPUT_RECORDS=               13688054 (21% of input)
+                M5_WARC_OUTPUT_RECORDS=               13688054 (13.7M 21% of input)
                 Map output records (4x slices) =      54752216
  (all reducer counts, except total comparisons, are double counted by up to 4x)
                 R_SIMHASH_CANDIDATE_NOT_DUPLICATE= 19259842231
                 R_SIMHASH_COMPARISONS=             19271582261 (19.3B)
-                R_SIMHASH_EXACT_DUPLICATE=            19560389
+                R_SIMHASH_EXACT_DUPLICATE=            19560389 
                 R_SIMHASH_HASH_DIFFERENT_LANGUAGE=      365369
                 R_SIMHASH_HASH_DIFFERENT_LENGTH=       9213563
                 R_SIMHASH_NEAR_DUPLICATE=             11247945
@@ -137,4 +139,152 @@ Theory - WARCRecord reads entire record into memory when it should only read hea
         File Input Format Counters 
                 Bytes Read=372380725845 (372 GB)
         File Output Format Counters 
-                Bytes Written=1136452944 (1.1 GB) 
+                Bytes Written=1136452944 (1.1 GB)
+
+30808334 dupe records written by reducers
+15614719 (50.6%) in part-r-00000
+25809780 unique dupe records (?this # is too high - ie more than total # of recods?)
+21253056 occur 1 time
+ 4175567 occur 2 times
+  320484 3 times
+   60673 4 times
+
+Run #2 with mapper HTML deep nesting bug fixed
+================================================
+Crawl: 2016-07 1.1% sample (400 files)
+Creation date:2016-04-09 21:07 (UTC)
+End date:     2016-04-10 02:57 (UTC)
+Elapsed time: 5 hrs, 49 minutes (20335 seconds) !!
+Normalized Instance Hours: 1680 
+Cost: $19.50 c3.xlarge spot price $0.30-0.35 (bid $0.45)
+
+
+============= 2nd run of 1% sample =========
+
+21:07 Start 471 total tasks, 400 mappers, 70 reducers
+21:53-57 1st wave if mappers completes 470->330
+22:15-25 2nd wave of mappers completes 330-
+22:47 reducers running (when did they start)?
+23:20 containers pending down to 8, but then rebound to 32
+24:30 containers pending down to 5
+25:40 pending = 0 remain there for another hour until termination
+26:55 termination after 5h49m - 20335 seconds
+
+
+cancelled maps 39, 43, 83, 93, 106, 111, 121, 182, 218, 261, 281
+pending maps 102 (two failed attempts - after 1000+ records), 53 (two failed attempts - after 1000+ records)
+73 running tasks
+
+mapper 000 - succeeded after 39 minutes, 34,357 records
+
+AttemptID:attempt_1460236413688_0001_m_000001_0 Timed out after 7200 secs
+Same for:
+000001 - failed, killed, succeeded after 91.92 minutes 34,436 records - S3 reset - s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2016-07/segments/1454701159376.39/warc/CC-MAIN-20160205193919-00301-ip-10-236-182-209.ec2.internal.warc.gz
+000038 - failed, failed, killed - 12,000 records - s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2016-07/segments/1454701167113.3/warc/CC-MAIN-20160205193927-00101-ip-10-236-182-209.ec2.internal.warc.gz
+000043 - failed, failed, killed - 5,000 records, S3 reset - s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2016-07/segments/1454701163421.31/warc/CC-MAIN-20160205193923-00001-ip-10-236-182-209.ec2.internal.warc.gz
+000053 - failed, failed, pending - 1000 records - s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2016-07/segments/1454701161942.67/warc/CC-MAIN-20160205193921-00001-ip-10-236-182-209.ec2.internal.warc.gz
+000083 - failed, failed, killed - 7000 records - s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2016-07/segments/1454701158601.61/warc/CC-MAIN-20160205193918-00301-ip-10-236-182-209.ec2.internal.warc.gz
+000093 - failed, failed, killed - 1000 records, then 1hr stall - s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2016-07/segments/1454701160918.28/warc/CC-MAIN-20160205193920-00201-ip-10-236-182-209.ec2.internal.warc.gz
+000102 - failed, failed, pending - 1000 records, then 1 hr stall - s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2016-07/segments/1454701166261.11/warc/CC-MAIN-20160205193926-00101-ip-10-236-182-209.ec2.internal.warc.gz
+000106 - killed
+000111 - killed
+000121 - killed
+000182 - failed, failed, killed - 3000 records - s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2016-07/segments/1454701163663.52/warc/CC-MAIN-20160205193923-00001-ip-10-236-182-209.ec2.internal.warc.gz
+000218 - killed
+000261 - killed
+000281 - killed
+000307 - failed, succeeded, killed - S3 connect reset during first 1000 records, then finished 32,375 records in 86.5 minutes
+000338 - failed, failed, killed - 1000 records - s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-2016-07/segments/1454701157012.30/warc/CC-MAIN-20160205193917-00101-ip-10-236-182-209.ec2.internal.warc.gz
+
+
+? Speculating that there are some indications of S3 problems getting to the log bucket, so switching from s3n: protocol to s3: ?
+
+** Need to include segment ID in output file path so there are no collisions **
+
+2016-04-10 02:54:03,061 INFO org.apache.hadoop.mapreduce.Job (main): Job job_1460236413688_0001 completed successfully
+2016-04-10 02:54:03,173 INFO org.apache.hadoop.mapreduce.Job (main): Counters: 83
+        File System Counters
+                FILE: Number of bytes read=   2756948739 (2.7GB)
+                FILE: Number of bytes written=6001403664
+                FILE: Number of read operations=0
+                FILE: Number of large read operations=0
+                FILE: Number of write operations=0
+                HDFS: Number of bytes read=87969
+                HDFS: Number of bytes written=0
+                HDFS: Number of read operations=386
+                HDFS: Number of large read operations=0
+                HDFS: Number of write operations=0
+                S3: Number of bytes read=  347534627080 (347.5 GB)
+                S3: Number of bytes written=21559744696 (21.6 GB)
+                S3: Number of read operations=0
+                S3: Number of large read operations=0
+                S3: Number of write operations=0
+        Job Counters 
+                **Failed map tasks=30 (?why is this higher than specified 5% max failures?)
+                **Killed map tasks=15
+                Launched map tasks=431
+                Launched reduce tasks=71
+                Other local map tasks=29
+                Data-local map tasks=402
+                Total time spent by all maps in occupied slots (ms)=   47824020180
+                Total time spent by all reduces in occupied slots (ms)=91888404840
+                Total time spent by all map tasks (ms)=   1062756004 (295 hrs! vs 174 hrs in run #1 - 41.2 min/map vs 25.5 min)
+                Total time spent by all reduce tasks (ms)=1020982276
+                Total vcore-seconds taken by all map tasks=1062756004
+                Total vcore-seconds taken by all reduce tasks=1020982276
+                Total megabyte-seconds taken by all map tasks=1530368645760
+                Total megabyte-seconds taken by all reduce tasks=2940428954880
+        Map-Reduce Framework
+                Map input records= 57729785
+                Map output records=50316560
+                Map output bytes=4221397508
+                Map output materialized bytes=3187158858
+                Input split bytes=87969
+                Reduce input groups=251557
+                Reduce shuffle bytes=3187158858
+                Reduce input records= 50316560
+                Reduce output records=26766031
+                Spilled Records=100633120
+                Shuffled Maps =27406
+                Merged Map outputs=27406
+                GC time elapsed (ms)=12730924
+                CPU time spent (ms)=777520170
+                Physical memory (bytes) snapshot=517031022592
+                Virtual memory (bytes) snapshot=1601591750656
+                Total committed heap usage (bytes)=496871407616
+
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_COUNTER
+                Map input records=                   57729785 (57.7M)
+                M2_WARC_NOT_HTTP_RESPONSE=           38486652
+                M3_WARC_WRONG_CONTENT_TYPE=            486346
+                M4_WARC_EMPTY_TEXT=                   6177646
+                M5_WARC_OUTPUT_RECORDS=              12579140 (12.6M)
+                Reduce input records=                50316560 (4x mapped records)
+                R_SIMHASH_CANDIDATE_NOT_DUPLICATE=18086438372
+                R_SIMHASH_COMPARISONS=            18097957709 (18 billion)
+                R_SIMHASH_EXACT_DUPLICATE=           15843480
+                R_SIMHASH_HASH_DIFFERENT_LANGUAGE=     248849
+                R_SIMHASH_HASH_DIFFERENT_LENGTH=      8694981
+                R_SIMHASH_NEAR_DUPLICATE=            10922551
+                R_SIMHASH_NEAR_DUPLICATE_DIFF_LANG=    596786
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_HAMMING_DIST
+                D04=  65803334
+                D06= 253499154
+                D08= 710306749
+                D10=1519249391
+                D12=2527691783
+                D14=3327260297
+                D16=3468617219
+                D18=2875080043
+                D20=1877563038
+                D22= 957670024
+                D24= 372497327
+                D26= 107033271
+                D28=  21362546
+                D30=   2649366
+                D32=    153994
+        File Input Format Counters 
+                Bytes Read=347534627080 (347.6 GB)
+        File Output Format Counters 
+                Bytes Written=1037290680 (1 GB)
+                
