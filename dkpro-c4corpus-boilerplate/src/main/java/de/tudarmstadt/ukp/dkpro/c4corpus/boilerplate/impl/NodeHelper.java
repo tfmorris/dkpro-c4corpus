@@ -180,7 +180,7 @@ public class NodeHelper
 
     public static boolean isLinkTag(Node elem)
     {
-        return elem instanceof Element && !"".equals(((Element) elem).attr("href"));
+        return elem instanceof Element && "a".equals(((Element) elem).tagName());
     }
 
 }

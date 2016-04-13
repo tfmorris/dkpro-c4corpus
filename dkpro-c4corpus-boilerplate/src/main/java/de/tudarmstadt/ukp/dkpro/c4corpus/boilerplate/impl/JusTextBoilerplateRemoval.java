@@ -88,7 +88,9 @@ public class JusTextBoilerplateRemoval
         try {
             document = Jsoup.parse(html);
             document = new Cleaner(
-                    Whitelist.relaxed().removeTags("img", "head", "script", "style", ".hidden", "embedded", "#comment"))
+                    Whitelist.relaxed()
+                        .removeTags("img", "head", "script", "style", ".hidden", "embedded", "#comment")
+                        .removeAttributes("a", "href")) // URL absolutization takes forever!
                             .clean(document);
             document.outputSettings().charset("UTF-8");
             document.outputSettings().escapeMode(EscapeMode.xhtml);
