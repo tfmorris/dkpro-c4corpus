@@ -23,6 +23,7 @@ import org.jsoup.nodes.TextNode;
 
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Data structure representing one block of text in HTML
@@ -36,7 +37,7 @@ public class Paragraph
         extends LinkedList<Node>
 {
     private static final long serialVersionUID = 1L;
-
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     public enum PARAGRAPH_TYPE {UNKNOWN, SHORT, GOOD, NEAR_GOOD, BAD};
 
@@ -125,31 +126,20 @@ public class Paragraph
         this.rawText = rawText;
     }
 
-    public int getWordsCount()
-    {
-        return this.getRawText().split("\\s+").length;
-    }
-
-    public int stopwordsCount(Set<String> stopwords)
-    {
-        int count = 0;
-
-        for (String word : this.getRawText().split("\\s+")) {
-            if (stopwords.contains(word.toLowerCase())) {
-                count += 1;
-            }
-        }
-        return count;
-    }
-
     public float stopwords_density(Set<String> stopwords)
     {
-        int wordsCount = this.getWordsCount();
-        if (wordsCount == 0) {
+        String[] words = WHITESPACE.split(this.getRawText());
+        if (words.length == 0) {
             return 0;
         }
+        int stopWords = 0;
+        for (String word : words) {
+            if (stopwords.contains(word.toLowerCase())) {
+                stopWords += 1;
+            }
+        }
 
-        return this.stopwordsCount(stopwords) / (float) wordsCount;
+        return stopWords / (float) words.length;
     }
 
     /**
