@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Some helper functions for cleaning web text
@@ -49,8 +50,22 @@ public class Utils
         //replace extra <br> (sometimes the paragraph contains <br><br>,
         //the first one will be use as new paragraph marker but the second 
         //one must be removed)
-        text = text.replaceAll("<br>", ""); // or [\\s+&&[^\n])]
+        text = BREAK_TAG.matcher(text).replaceAll(""); // or [\\s+&&[^\n])]
 
+        return text;
+    }
+    private static final Pattern BREAK_TAG = Pattern.compile("<br>");
+
+    /**
+     * This implements the HTML white space normalization as specified in the
+     * rendering rules:
+     * https://www.w3.org/TR/html4/struct/text.html#h-9.1
+     * https://www.w3.org/TR/CSS2/text.html#white-space-model
+     * 
+     * @param text
+     * @return
+     */
+    public static String normalizeWhitespace(String text) {
         return text;
     }
 
@@ -107,7 +122,20 @@ public class Utils
             + "\\u3000";
 
     private static final String WHITESPACE_CHAR_CLASS = "[" + WHITESPACE_CHARS + "]";
-
+    private static final Pattern MULTIPLE_WHITESPACE = Pattern.compile(WHITESPACE_CHAR_CLASS + "+");
+    private static final Pattern CONTROL_CHARACTERS = Pattern.compile("[\\p{Cntrl}&&[^\\r\\n]]"); // except CR & LF
+    // One or more newlines optionally preceded or trailed by whitespace become
+    private static final Pattern LEADING_TRAILING_WHITESPACE = Pattern.compile("\\n+" + WHITESPACE_CHAR_CLASS + "*|" + WHITESPACE_CHAR_CLASS + "*\\n+");
+    private static final Pattern ONE_OR_MORE__DASHES = Pattern.compile("[" + "" + "\\u2012" // figure dash
+            + "\\u2013" // en dash
+            + "\\u2014" // em dash
+            + "\\u2015" // horizontal bar
+            + "\\u2053" // swung dash
+            +"]+");
+    private static final Pattern ELLIPSIS = Pattern.compile("\\u2026");
+    private static final Pattern DOUBLE_QUOTES = Pattern.compile("[“”«»„‟]");
+    private static final Pattern SINGLE_QUOTES = Pattern.compile("[‘’‚‛‹›`]");
+    
     /**
      * Normalizes the given string - unifying whitespaces, quotations, and dashes
      *
@@ -116,32 +144,24 @@ public class Utils
      */
     public static String normalize(String text)
     {
-        String result = text.replaceAll("\\n+", "\n");
-
         // first replace all control characters except newlines
-        result = result.replaceAll("[\\p{Cntrl}&&[^\\r\\n]]", "");
-        // all weird whitespaces
-        result = result.replaceAll(WHITESPACE_CHAR_CLASS + "+", " ");
+        String result = CONTROL_CHARACTERS.matcher(text).replaceAll("");
 
-        // trim the lines
-        result = result.replaceAll("\\n" + WHITESPACE_CHAR_CLASS + "+", "\n");
-        result = result.replaceAll(WHITESPACE_CHAR_CLASS + "+\\n", "\n");
+        // all weird whitespaces
+        result = MULTIPLE_WHITESPACE.matcher(result).replaceAll(" ");
+
+        // trim the lines - also handles multiple newlines
+        result = LEADING_TRAILING_WHITESPACE.matcher(result).replaceAll("\n");
 
         // dashes
-        String dashChars = "" + "\\u2012" // figure dash
-                + "\\u2013" // en dash
-                + "\\u2014" // em dash
-                + "\\u2015" // horizontal bar
-                + "\\u2053" // swung dash
-                ;
-        result = result.replaceAll("[" + dashChars + "]+", "-");
+        result = ONE_OR_MORE__DASHES.matcher(result).replaceAll("-");
 
         // ellipsis
-        result = result.replaceAll("\\u2026", "...");
+        result = ELLIPSIS.matcher(result).replaceAll("...");
 
         // quotation marks
-        result = result.replaceAll("[“”«»„‟]", "\"");
-        result = result.replaceAll("[‘’‚‛‹›`]", "'");
+        result = DOUBLE_QUOTES.matcher(result).replaceAll("\"");
+        result = SINGLE_QUOTES.matcher(result).replaceAll("'");
 
         return result.trim();
     }
