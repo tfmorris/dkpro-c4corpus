@@ -1,6 +1,7 @@
 #!/bin/bash
 CRAWL=2016-07
 # TODO add root S3 bucket?
+mvn clean
 mvn package
 echo "Copying built JAR to AWS S3"
 aws s3 --profile cc-user \
