@@ -36,14 +36,17 @@ import java.util.Locale;
 public class WARCWriterReducerClass
         extends Reducer<Text, WARCWritable, NullWritable, WARCWritable>
 {
+    private static final String LONG_FORMAT = "Lic_%s_Lang_%s_NoBoilerplate_%s_MinHtml_%s";
+    // as above, but without human readable niceties and with WARC ID appended
+    private static final String SHORT_FORMAT = "%s_%s_%s_%s_%s";
+
     /**
-     * Returns prefix of the output warc file given the parameters; this method is also as a key
+     * Returns prefix of the output WARC file given the parameters; this method is also as a key
      * for distributing entries to reducers.
      * <br>
      * The result has this format:
-     * {@code Lic_LICENSE_Lang_LANGUAGE_NoBoilerplate_BOOLEAN_Bin_BINNUMBER}
-     * or
-     * {@code Lic_LICENSE_Lang_LANGUAGE_NoBoilerplate_BOOLEAN} if binNumber is zero
+     * 
+     * {@code Lic_LICENSE_Lang_LANGUAGE_NoBoilerplate_BOOLEAN}
      *
      * @param license       license
      * @param language      lang
@@ -73,9 +76,18 @@ public class WARCWriterReducerClass
                     "minimalHtml is null/empty (val: '" + minimalHtml + "')");
         }
 
-        return String.format(Locale.ENGLISH, "Lic_%s_Lang_%s_NoBoilerplate_%s_MinHtml_%s", license,
+        return String.format(Locale.ENGLISH, LONG_FORMAT, license,
                 language,
                 noBoilerplate, minimalHtml);
+    }
+
+    /**
+     * Create a compact key that encodes all of our output file info.
+     */
+    public static String createKey(String license, String language, String noBoilerplate, String minimalHtml,
+            String warcId) 
+    {
+        return String.format(Locale.ENGLISH, SHORT_FORMAT, license, language, noBoilerplate, minimalHtml, warcId);
     }
 
     @Override
@@ -109,14 +121,6 @@ public class WARCWriterReducerClass
 
         // set the file name prefix
         String fileName = createOutputFilePrefix(license, language, noBoilerplate, minimalHtml);
-
-        // bottleneck of single reducer for all "Lic_none_Lang_en" pages (majority of Web)
-        //        if ("en".equals(language) && LicenseDetector.NO_LICENCE.equals(license)) {
-        //            long simHash = Long
-        //                    .valueOf(header.getField(WARCRecord.WARCRecordFieldConstants.SIMHASH));
-        //            int binNumber = getBinNumberFromSimHash(simHash);
-        //            fileName = createOutputFilePrefix(license, language, noBoilerplate);
-        //        }
 
         multipleOutputs.write(NullWritable.get(), warcWritable, fileName);
     }
