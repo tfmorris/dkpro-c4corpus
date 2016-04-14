@@ -416,4 +416,11 @@ map tasks taking 18-20 minutes mostly, with some outliers at 30 minutes
         File Output Format Counters 
                 Bytes Written=1242889294
  
+=== run 4 with both current & original code ===
+aborted by outbid
 
+Gradual reduction in CPU utilization is probably caused by reduce jobs getting started "too early" is due to this default value:
+
+    mapreduce.job.reduce.slowstart.completedmaps	0.05
+
+Since our Phase 1 is almost a map-only job, we want this to be much closer to 100% (ie 1.0)
