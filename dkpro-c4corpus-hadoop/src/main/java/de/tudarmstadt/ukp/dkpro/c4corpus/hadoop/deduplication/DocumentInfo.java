@@ -38,7 +38,10 @@ public class DocumentInfo
     private Text docID;
     private IntWritable docLength;
     private LongWritable docSimHash;
-    private Text language ;
+    private Text language;
+    private Text license;
+    private Text noBoilerplate;
+    private Text minimalHtml;
 
     /**
      * Private constructor since we're just a data object, we want to be initialized.
@@ -54,11 +57,32 @@ public class DocumentInfo
      * @param hash SimHash value for document
      * @param lang language
      */
-    public DocumentInfo(String docID, int length, long hash, String lang) {
+    public DocumentInfo(String docID, int length, long hash, String lang, String license, String noBoilerplate,
+            String html)
+    {
         this.docID = new Text(docID);
         this.docLength = new IntWritable(length);
         this.docSimHash = new LongWritable(hash);
         this.language = new Text(lang);
+        this.license = new Text(license);
+        this.noBoilerplate = new Text(noBoilerplate);
+        this.minimalHtml = new Text(html);
+    }
+
+    public DocumentInfo(Text docID, IntWritable length, LongWritable hash, Text lang, Text license, Text noBoilerplate, Text html)
+    {
+        this.docID = new Text(docID);
+        this.docLength = new IntWritable(length.get());
+        this.docSimHash = new LongWritable(hash.get());
+        this.language = new Text(lang);
+        this.license = new Text(license);
+        this.noBoilerplate = new Text(noBoilerplate);
+        this.minimalHtml = new Text();
+    }
+
+    public DocumentInfo(DocumentInfo doc) {
+        this(doc.getDocID(), doc.getDocLength(), doc.getDocSimHash(), doc.getDocLang(), doc.getLicense(),
+                doc.getNoBoilerPlate(), doc.getMinimalHtml());
     }
 
     /**
@@ -72,36 +96,26 @@ public class DocumentInfo
     }
 
     private void createDocumentInfo(String commaSeparatedInfo) {
-        String[] idLengSimHashOfDoc = commaSeparatedInfo.split(";");
+        // Bracket removal is for when we get the contents of a list without the array notation removed
+        String[] pieces = commaSeparatedInfo.replace("[", "").replace("]", "").split(";");
 
-        String docID = idLengSimHashOfDoc[0].replaceAll("\\[", "").trim();
+        String docID = pieces[0].trim();
         this.docID = new Text(docID);
 
-        int docLength = Integer.valueOf(idLengSimHashOfDoc[1].trim());
+        int docLength = Integer.valueOf(pieces[1].trim());
         this.docLength = new IntWritable(docLength);
 
-        long docSimHash = Long.valueOf(idLengSimHashOfDoc[2].trim());
+        long docSimHash = Long.valueOf(pieces[2].trim());
         this.docSimHash = new LongWritable(docSimHash);
 
-        String lang = idLengSimHashOfDoc[3].replaceAll("\\]", "").trim();
+        String lang = pieces[3].trim();
         this.language = new Text(lang);
-    }
 
-    public void setDocID(Text docID) {
-        //deep copy is a must
-        this.docID = new Text(docID);
-    }
-
-    public void setDocLength(IntWritable docLength) {
-        this.docLength = new IntWritable(docLength.get());
-    }
-
-    public void setDocSimHash(LongWritable docSimHash) {
-        this.docSimHash = new LongWritable(docSimHash.get());
-    }
-
-    public void setDocLanguage(Text lang) {
-        this.language = new Text(lang);
+        if (pieces.length > 4) { // New style with more pieces
+            this.language = new Text(pieces[4].trim());
+            this.noBoilerplate = new Text(pieces[5].trim());
+            this.minimalHtml = new Text(pieces[6].trim());
+        }
     }
 
     public Text getDocID() {
@@ -120,6 +134,18 @@ public class DocumentInfo
         return language;
     }
 
+    public Text getLicense() {
+        return this.license;
+    }
+
+    public Text getNoBoilerPlate() {
+        return this.noBoilerplate;
+    }
+
+    public Text getMinimalHtml() {
+        return this.minimalHtml;
+    }
+
     @Override
     public void write(DataOutput d)
             throws IOException {
@@ -127,6 +153,9 @@ public class DocumentInfo
         docLength.write(d);
         docSimHash.write(d);
         language.write(d);
+        license.write(d);
+        noBoilerplate.write(d);
+        minimalHtml.write(d);;
     }
 
     @Override
@@ -136,21 +165,14 @@ public class DocumentInfo
         docLength.readFields(di);
         docSimHash.readFields(di);
         language.readFields(di);
+        license.readFields(di);
+        noBoilerplate.readFields(di);
+        minimalHtml.readFields(di);
     }
 
     @Override
     public int compareTo(DocumentInfo o) {
-        int compareValue = this.docID.compareTo(o.getDocID());
-        if (compareValue == 0) {
-            compareValue = this.docLength.compareTo(o.getDocLength());
-            if (compareValue == 0) {
-                compareValue = this.docSimHash.compareTo(o.getDocSimHash());
-            }
-            if (compareValue == 0) {
-                compareValue = this.language.compareTo(o.getDocLang());
-            }
-        }
-        return compareValue;
+        return this.docID.compareTo(o.getDocID());
     }
 
     @Override
@@ -162,18 +184,16 @@ public class DocumentInfo
     public boolean equals(Object o) {
         if (o instanceof DocumentInfo) {
             DocumentInfo di = (DocumentInfo) o;
-            return docID.equals(di.getDocID())
-                    && docLength.equals(di.getDocLength())
-                    && docSimHash.equals(di.getDocSimHash())
-                    && language.equals(di.getDocLang());
+            // IDs are unique, so we should never get matching IDs where the other values are different
+            return docID.equals(di.getDocID());
         }
         return false;
     }
 
     @Override
     public String toString() {
-        String result = this.docID + ";" + this.docLength + ";"
-                + this.docSimHash + ";" + this.language;
-        return result;
+        return String.join(";", this.docID.toString(), this.docLength.toString(), this.docSimHash.toString(),
+                this.language.toString(), this.license.toString(), this.noBoilerplate.toString(),
+                this.minimalHtml.toString());
     }
 }
