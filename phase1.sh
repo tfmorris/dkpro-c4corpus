@@ -16,7 +16,7 @@ aws s3 --profile cc-user \
 # 4000 file sample <crawlbase>/segments/*/warc/*-00[0-3]0[0-9]-*.warc.gz",
 echo "Creating cluster"
 aws emr create-cluster \
-    --name "C4Corpus phase 1 - 1.0.0-SNAPSHOT master - 2 x m4.x4large + 4 x c4.8xlarge 400 file sample $CRAWL" \
+    --name "C4Corpus phase 1 - 1.0.0-SNAPSHOT new-dataflow - 2 x m4.x4large + 8 x m4.4xlarge 400 file sample $CRAWL" \
     --profile cc-user \
     --auto-terminate \
     --region us-east-1 \
@@ -53,20 +53,20 @@ aws emr create-cluster \
         "-D", "mapreduce.job.reduce.slowstart.completedmaps=0.9",
         "-D", "c4corpus.keepminimalhtml=true",
         "s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-'$CRAWL'/segments/*/warc/*-00[0-3]01-*.warc.gz",
-        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-1pct-master"],
+        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-1pct-new-dataflow"],
         "Type":"CUSTOM_JAR",
         "ActionOnFailure":"CANCEL_AND_WAIT",
         "Jar":"s3://tfmorris/c4corpus/dkpro-c4corpus-hadoop-1.0.0-SNAPSHOT.jar",
         "Properties":"",
         "Name":"Custom JAR"}]' \
     --instance-groups '[
-        {"InstanceCount":4,
-            "BidPrice":"0.45",
+        {"InstanceCount":8,
+            "BidPrice":"0.35",
             "InstanceGroupType":"TASK",
-            "InstanceType":"c4.8xlarge",
-            "Name":"Task - 4 x c4.8xlarge"},
+            "InstanceType":"m4.4xlarge",
+            "Name":"Task - 8 x m4.mxlarge"},
         {"InstanceCount":2,
-            "BidPrice":"0.40",
+            "BidPrice":"0.35",
             "InstanceGroupType":"CORE",
             "InstanceType":"m4.4xlarge",
             "Name":"Core - 2 x m4.4xlarge"},
