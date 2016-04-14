@@ -132,7 +132,6 @@ public class Utils
             + "\\u2015" // horizontal bar
             + "\\u2053" // swung dash
             +"]+");
-    private static final Pattern ELLIPSIS = Pattern.compile("\\u2026");
     private static final Pattern DOUBLE_QUOTES = Pattern.compile("[“”«»„‟]");
     private static final Pattern SINGLE_QUOTES = Pattern.compile("[‘’‚‛‹›`]");
     
@@ -157,7 +156,7 @@ public class Utils
         result = ONE_OR_MORE__DASHES.matcher(result).replaceAll("-");
 
         // ellipsis
-        result = ELLIPSIS.matcher(result).replaceAll("...");
+        result = result.replace("\\u2026", "...");
 
         // quotation marks
         result = DOUBLE_QUOTES.matcher(result).replaceAll("\"");
