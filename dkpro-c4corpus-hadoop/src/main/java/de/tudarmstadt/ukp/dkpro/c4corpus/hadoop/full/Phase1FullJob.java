@@ -81,9 +81,10 @@ public class Phase1FullJob
     {
         M1_WARC_RESPONSE_TOO_BIG,
         M2_WARC_NOT_HTTP_RESPONSE,
-        M3_WARC_WRONG_CONTENT_TYPE,
-        M4_WARC_EMPTY_TEXT,
-        M5_WARC_OUTPUT_RECORDS,
+        M3_NO_HTTP_HEADER,
+        M4_WARC_WRONG_CONTENT_TYPE,
+        M5_WARC_EMPTY_TEXT,
+        M6_WARC_OUTPUT_RECORDS,
         R_SIMHASH_HASH_DIFFERENT_LANGUAGE,
         R_SIMHASH_EXACT_DUPLICATE,
         R_SIMHASH_NEAR_DUPLICATE,
@@ -250,12 +251,13 @@ public class Phase1FullJob
 
             // we're only interested in text/html
             if (httpHeaderText == null) {
+                context.getCounter(C4_COUNTER.M3_NO_HTTP_HEADER).increment(1);
                 return true;
             }
 
             String contentType = WARCRecord.extractHTTPHeaderContentType(httpHeaderText);
             if (!ALLOWED_CONTENT_TYPES.contains(contentType)) {
-                context.getCounter(C4_COUNTER.M3_WARC_WRONG_CONTENT_TYPE).increment(1);
+                context.getCounter(C4_COUNTER.M4_WARC_WRONG_CONTENT_TYPE).increment(1);
                 return true;
             }
 
@@ -308,7 +310,7 @@ public class Phase1FullJob
 
             // skip empty documents
             if (plainText.isEmpty()) {
-                context.getCounter(C4_COUNTER.M4_WARC_EMPTY_TEXT).increment(1);
+                context.getCounter(C4_COUNTER.M5_WARC_EMPTY_TEXT).increment(1);
                 return;
             }
 
@@ -365,7 +367,7 @@ public class Phase1FullJob
             String baseName = inputSplit.getPath().getName().replace(".warc.gz", "");
             mos.write("textWARC",NullWritable.get(), value, baseName);
 
-            context.getCounter(C4_COUNTER.M5_WARC_OUTPUT_RECORDS).increment(1);
+            context.getCounter(C4_COUNTER.M6_WARC_OUTPUT_RECORDS).increment(1);
             // collect some stats to logs
             recordCounter++;
             sizeCounter += plainText.length();
