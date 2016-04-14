@@ -52,11 +52,7 @@ public class DeDuplicationTextOutputReducer
         //collect the values of each band#_bitString
         for (DocumentInfo v : values) {
             // we really need the copy here!
-            DocumentInfo documentInfo = new DocumentInfo(v.getDocID().toString(),
-                    v.getDocLength().get(),
-                    v.getDocSimHash().get(),
-                    v.getDocLang().toString());
-            documents.add(documentInfo);
+            documents.add(new DocumentInfo(v));
         }
 
         //choose candidates for similarity check
