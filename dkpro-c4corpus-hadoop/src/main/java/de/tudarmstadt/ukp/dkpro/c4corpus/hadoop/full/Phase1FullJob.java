@@ -85,9 +85,9 @@ public class Phase1FullJob
         job.setMapperClass(MapperClass.class);
 
         // we will compress the mapper's output (use fast Snappy compressor)
-        job.getConfiguration().setBoolean(Job.MAP_OUTPUT_COMPRESS, true);
-        job.getConfiguration()
-                .setClass(Job.MAP_OUTPUT_COMPRESS_CODEC, SnappyCodec.class, CompressionCodec.class);
+//        job.getConfiguration().setBoolean(Job.MAP_OUTPUT_COMPRESS, true);
+//        job.getConfiguration()
+//                .setClass(Job.MAP_OUTPUT_COMPRESS_CODEC, GzipCodec.class, CompressionCodec.class);
 
         // reducer
         job.setReducerClass(SimpleWarcWriterReducer.class);
