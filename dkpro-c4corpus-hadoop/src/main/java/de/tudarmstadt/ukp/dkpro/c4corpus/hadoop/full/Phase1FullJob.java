@@ -19,6 +19,7 @@ package de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full;
 
 import de.tudarmstadt.ukp.dkpro.c4corpus.boilerplate.BoilerPlateRemoval;
 import de.tudarmstadt.ukp.dkpro.c4corpus.boilerplate.impl.JusTextBoilerplateRemoval;
+import de.tudarmstadt.ukp.dkpro.c4corpus.deduplication.impl.ParallelDocumentDeDuplication;
 import de.tudarmstadt.ukp.dkpro.c4corpus.deduplication.impl.SimHashUtils;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.CharsetDetector;
 import de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.LanguageIdentifier;
@@ -357,15 +358,15 @@ public class Phase1FullJob
             // Our primary output (although smaller in size) goes to the primary output so it gets
             // fed to the reducers
             String metadata = new DocumentInfo(header.getRecordID(), plainTextBytes.length,
-                    docSimHash, language).toString();
+                    docSimHash, language, license, noBoilerplate, minimalHtml).toString();
             for (long slice : SimHashUtils.sliceHash(docSimHash)) {
                 context.write(new LongWritable2(slice), new Text(metadata));
             }
 
             // Our text-only WARC goes to a non-reduce mapper output on the side
-            // TODO: Add in segment directory
-            String baseName = inputSplit.getPath().getName().replace(".warc.gz", "");
-            mos.write("textWARC",NullWritable.get(), value, baseName);
+            String segmentDir = inputSplit.getPath().getParent().getName();
+            String warcName = inputSplit.getPath().getName().replace(".warc.gz", "");
+            mos.write("textWARC",NullWritable.get(), value, segmentDir + "/" + warcName);
 
             context.getCounter(C4_COUNTER.M6_WARC_OUTPUT_RECORDS).increment(1);
             // collect some stats to logs
@@ -425,6 +426,11 @@ public class Phase1FullJob
             super.cleanup(context);
         };
 
+        /**
+         * TODO: Compare this to
+         * {@link ParallelDocumentDeDuplication#selectIDsToDelete(List)} to make
+         * sure we haven't left anything out
+         */
         @Override
         protected void reduce(LongWritable key, Iterable<Text> values, Context context)
             throws IOException, InterruptedException
@@ -503,7 +509,6 @@ public class Phase1FullJob
                 }
                 head = docs.get(i);
                 headHash = head.getDocSimHash().get();
-                // TODO: Handle scanning duplicates multiple times?
                 for (int j = i + 1; j < docs.size(); j++) {
                     if (duplicates.get(i)) {
                         continue;
