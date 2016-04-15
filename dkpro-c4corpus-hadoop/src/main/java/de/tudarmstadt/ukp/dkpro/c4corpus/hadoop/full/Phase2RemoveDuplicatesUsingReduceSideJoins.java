@@ -40,7 +40,9 @@ import org.apache.hadoop.util.ToolRunner;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * Accepts two sets of inputs: 1) text documents containing lists of duplicates and near duplicates
@@ -74,7 +76,7 @@ public class Phase2RemoveDuplicatesUsingReduceSideJoins
 {
     
     public enum C4P2_COUNTER {
-        REDUCE_OUTPUT_RECORDS, REDUCE_NULL_LANGUAGE, REDUCE_FILTERED_DUPLICATES, MAP_NEAR, MAP_EXACT
+        REDUCE_OUTPUT_RECORDS, REDUCE_NULL_LANGUAGE, REDUCE_FILTERED_DUPLICATES, MAP_NEAR, MAP_EXACT, REDUCE_DUPLICATE_COPIES
     }
 
 
@@ -157,7 +159,7 @@ public class Phase2RemoveDuplicatesUsingReduceSideJoins
             // Upstream job may include some non-match types for analysis purposes, so be careful to filter here
             if ("exact".equals(matchType) 
                     || (matchType.startsWith("near") && (matchDistance < SimHashUtils.HAMMING_DISTANCE_THRESHOLD))) {
-                String headDoc = valuePieces[1]; // This one doesn't get deleted. It was best candidate if a near match.
+                // String headDoc = valuePieces[1]; // This one doesn't get deleted. It was best candidate if a near match.
 
                 DocumentInfo duplicate = new DocumentInfo(valuePieces[2]);
                 String warcId = duplicate.getDocID().toString();
@@ -213,17 +215,24 @@ public class Phase2RemoveDuplicatesUsingReduceSideJoins
                 throws IOException, InterruptedException
         {
             Iterator<WARCWritable> iterator = values.iterator();
-            WARCWritable warcWritable = iterator.next();
+            WARCWritable warc = iterator.next();
             // If there's a second value, it means we have a duplicate and this should be skipped for output
             if (!iterator.hasNext()) {
-                if (warcWritable.getRecord().getHeader().getField(WARCRecord.WARCRecordFieldConstants.LANGUAGE) != null) {
-                    WARCWriterReducerClass.writeSingleWARCWritableToOutput(warcWritable, multipleOutputs);
+                if (warc.getRecord().getHeader().getField(WARCRecord.WARCRecordFieldConstants.LANGUAGE) != null) {
+                    WARCWriterReducerClass.writeSingleWARCWritableToOutput(warc, multipleOutputs);
                     context.getCounter(C4P2_COUNTER.REDUCE_OUTPUT_RECORDS).increment(1);
                 } else {
                     context.getCounter(C4P2_COUNTER.REDUCE_NULL_LANGUAGE).increment(1);
                 }
             } else {
                 context.getCounter(C4P2_COUNTER.REDUCE_FILTERED_DUPLICATES).increment(1);
+                // Just out of curiosity, how many duplicates were there of the duplicate
+                List<WARCWritable> dupes = new ArrayList<WARCWritable>();
+                dupes.add(warc); // add our first dupe before collecting the others
+                while(iterator.hasNext()) {
+                    dupes.add(iterator.next());
+                }
+                context.getCounter(C4P2_COUNTER.REDUCE_DUPLICATE_COPIES).increment(dupes.size());
             }
         }
 
