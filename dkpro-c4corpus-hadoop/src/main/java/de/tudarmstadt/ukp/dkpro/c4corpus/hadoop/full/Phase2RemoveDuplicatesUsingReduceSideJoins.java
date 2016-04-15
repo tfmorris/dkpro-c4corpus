@@ -72,6 +72,11 @@ public class Phase2RemoveDuplicatesUsingReduceSideJoins
         extends Configured
         implements Tool
 {
+    
+    public enum C4P2_COUNTER {
+        REDUCE_OUTPUT_RECORDS, REDUCE_NULL_LANGUAGE, REDUCE_FILTERED_DUPLICATES, MAP_NEAR, MAP_EXACT
+    }
+
 
     @Override
     public int run(String[] args)
@@ -139,19 +144,29 @@ public class Phase2RemoveDuplicatesUsingReduceSideJoins
         protected void map(LongWritable key, Text value, Context context)
                 throws IOException, InterruptedException
         {
-            String[] valuePieces = value.toString().split("|");
+            String[] valuePieces = value.toString().split("\\t")[1].split("\\|");
             String matchType = valuePieces[0]; // exact or near %3d with Hamming distance
             int matchDistance = 0;
             if (matchType.startsWith("near")) {
-                matchDistance = Integer.parseInt(matchType.split("\\s+")[0]);
+                matchDistance = Integer.parseInt(matchType.split("\\s+")[1]);
+                context.getCounter(C4P2_COUNTER.MAP_NEAR).increment(1);
+            } else if ("exact".equals(matchType)) {
+                context.getCounter(C4P2_COUNTER.MAP_EXACT).increment(1);
             }
 
             // Upstream job may include some non-match types for analysis purposes, so be careful to filter here
             if ("exact".equals(matchType) 
                     || (matchType.startsWith("near") && (matchDistance < SimHashUtils.HAMMING_DISTANCE_THRESHOLD))) {
                 String headDoc = valuePieces[1]; // This one doesn't get deleted. It was best candidate if a near match.
+
                 DocumentInfo duplicate = new DocumentInfo(valuePieces[2]);
                 String warcId = duplicate.getDocID().toString();
+                String license = duplicate.getLicense().toString();
+                String language = duplicate.getDocLang().toString();
+                String noBoilerplate = duplicate.getNoBoilerPlate().toString();
+                String minimalHtml = duplicate.getMinimalHtml().toString();
+                String reduceKey = WARCWriterReducerClass.createKey(license, language, noBoilerplate, minimalHtml, warcId) ;
+
 
                 // create a new dummy WARC record to be merged in the reducer
                 // will indicate that this document should be removed as a duplicate or near duplicate
@@ -166,7 +181,7 @@ public class Phase2RemoveDuplicatesUsingReduceSideJoins
 
                 WARCWritable dummyWARC = new WARCWritable(record);
 
-                context.write(new Text(warcId), dummyWARC);
+                context.write(new Text(reduceKey), dummyWARC);
             }
         }
     }
@@ -201,12 +216,14 @@ public class Phase2RemoveDuplicatesUsingReduceSideJoins
             WARCWritable warcWritable = iterator.next();
             // If there's a second value, it means we have a duplicate and this should be skipped for output
             if (!iterator.hasNext()) {
-                // TODO: Do we want to mix this in here or handle null languages when we do the language sort?
                 if (warcWritable.getRecord().getHeader().getField(WARCRecord.WARCRecordFieldConstants.LANGUAGE) != null) {
-                    WARCWriterReducerClass
-                    .writeSingleWARCWritableToOutput(warcWritable, multipleOutputs);
-                    context.write(NullWritable.get(), warcWritable);
+                    WARCWriterReducerClass.writeSingleWARCWritableToOutput(warcWritable, multipleOutputs);
+                    context.getCounter(C4P2_COUNTER.REDUCE_OUTPUT_RECORDS).increment(1);
+                } else {
+                    context.getCounter(C4P2_COUNTER.REDUCE_NULL_LANGUAGE).increment(1);
                 }
+            } else {
+                context.getCounter(C4P2_COUNTER.REDUCE_FILTERED_DUPLICATES).increment(1);
             }
         }
 
