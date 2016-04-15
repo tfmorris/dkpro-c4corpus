@@ -63,7 +63,13 @@ public class DocumentInfo
         this.docID = new Text(docID);
         this.docLength = new IntWritable(length);
         this.docSimHash = new LongWritable(hash);
+        if (lang == null) {
+            lang = "unknown";
+        }
         this.language = new Text(lang);
+        if (license == null) {
+            license = "none";
+        }
         this.license = new Text(license);
         this.noBoilerplate = new Text(noBoilerplate);
         this.minimalHtml = new Text(html);
@@ -112,7 +118,7 @@ public class DocumentInfo
         this.language = new Text(lang);
 
         if (pieces.length > 4) { // New style with more pieces
-            this.language = new Text(pieces[4].trim());
+            this.license = new Text(pieces[4].trim());
             this.noBoilerplate = new Text(pieces[5].trim());
             this.minimalHtml = new Text(pieces[6].trim());
         }
