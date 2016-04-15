@@ -70,7 +70,7 @@ import java.util.List;
  * @author Omnia Zayed
  * @author Ivan Habernal
  */
-public class Phase2RemoveDuplicatesUsingReduceSideJoins
+public class Phase2SortAndDedupe
         extends Configured
         implements Tool
 {
@@ -86,8 +86,8 @@ public class Phase2RemoveDuplicatesUsingReduceSideJoins
     {
         Job job = Job.getInstance(getConf());
 
-        job.setJarByClass(Phase2RemoveDuplicatesUsingReduceSideJoins.class);
-        job.setJobName(Phase2RemoveDuplicatesUsingReduceSideJoins.class.getName());
+        job.setJarByClass(Phase2SortAndDedupe.class);
+        job.setJobName(Phase2SortAndDedupe.class.getName());
 
         //first input the look up text file of ids to be deleted
         MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class,
@@ -114,7 +114,7 @@ public class Phase2RemoveDuplicatesUsingReduceSideJoins
     public static void main(String[] args)
             throws Exception
     {
-        ToolRunner.run(new Phase2RemoveDuplicatesUsingReduceSideJoins(), args);
+        ToolRunner.run(new Phase2SortAndDedupe(), args);
     }
 
 
