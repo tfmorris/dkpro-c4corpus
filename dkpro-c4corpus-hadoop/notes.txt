@@ -199,7 +199,7 @@ Same for:
 
 ? Speculating that there are some indications of S3 problems getting to the log bucket, so switching from s3n: protocol to s3: ?
 
-** Need to include segment ID in output file path so there are no collisions **
+** Need to include segment ID in output file path so there are no collisions ** - fixed 14-April
 
 2016-04-10 02:54:03,061 INFO org.apache.hadoop.mapreduce.Job (main): Job job_1460236413688_0001 completed successfully
 2016-04-10 02:54:03,173 INFO org.apache.hadoop.mapreduce.Job (main): Counters: 83
@@ -297,13 +297,13 @@ Same for:
 
 Aborted before 2 hrs due to lack of progress.
 Profiling revealed two significant issues:
-1. 50% time being spent in constructor for java.net.URL() as part of HREF absolutization
-2. 35% time being spent in LinkedList.get() by contextual reclassifier
+1. 50% time being spent in constructor for java.net.URL() as part of HREF absolutization - removed all href attributes
+2. 35% time being spent in LinkedList.get() by contextual reclassifier - switched from LinkedList to ArrayList
 
 ======= 4th run ========
 2016-04-13
 switched to 16x c3.2xlarge instead of 4x8xlarge due to spot price bid jump
-Elapsed time 1h43m, 560 normalized instance hours, map reduce job 1hr31min
+Elapsed time 1h43m, 560 normalized instance hours, map reduce job 1hr31min - down from 2h19 min originally, but with zero failures now
 
 20:59 (UTC) start
 21:11 container pending drops from 780 to 510 (according to CloudWatch)
@@ -424,3 +424,4 @@ Gradual reduction in CPU utilization is probably caused by reduce jobs getting s
     mapreduce.job.reduce.slowstart.completedmaps	0.05
 
 Since our Phase 1 is almost a map-only job, we want this to be much closer to 100% (ie 1.0)
+*confirmed* - changing this to 0.9 on job submission makes much better use of the CPUs.
