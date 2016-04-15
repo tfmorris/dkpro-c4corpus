@@ -5,7 +5,7 @@ mvn clean
 mvn package
 echo "Copying built JAR to AWS S3"
 aws s3 --profile cc-user \
-    cp dkpro-c4corpus-hadoop/target/dkpro-c4corpus-hadoop-1.0.0-SNAPSHOT.jar \
+    cp dkpro-c4corpus-hadoop/target/dkpro-c4corpus-hadoop-1.0.0-SNAPSHOT-standalone.jar \
     s3://tfmorris/c4corpus/
 # Subnet subnet-d9c972f2 us-east-1e
 # 2016-07 crawl - 100 segments of 350 files each
@@ -51,15 +51,16 @@ aws emr create-cluster \
         "-D","mapreduce.task.timeout=7200000",
         "-D", "mapreduce.map.failures.maxpercent=5",
         "-D", "mapreduce.map.maxattempts=2",
-        "-D", "mapreduce.job.reduce.slowstart.completedmaps=0.9",
+        "-D", "mapreduce.job.reduce.slowstart.completedmaps=0.95",
         "-D", "c4corpus.keepminimalhtml=true",
         "s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-'$CRAWL'/segments/*/warc/*-00[0-3]01-*.warc.gz",
-        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-1pct-new-dataflow"],
+        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-1pct-new-dataflow2"],
         "Type":"CUSTOM_JAR",
         "ActionOnFailure":"CANCEL_AND_WAIT",
-        "Jar":"s3://tfmorris/c4corpus/dkpro-c4corpus-hadoop-1.0.0-SNAPSHOT.jar",
+        "Jar":"s3://tfmorris/c4corpus/dkpro-c4corpus-hadoop-1.0.0-SNAPSHOT-standalone.jar",
         "Properties":"",
-        "Name":"Custom JAR"}]' \
+        "Name":"C4Corpus Phase 1 new"}
+        ]' \
     --instance-groups '[
         {"InstanceCount":8,
             "BidPrice":"0.35",
