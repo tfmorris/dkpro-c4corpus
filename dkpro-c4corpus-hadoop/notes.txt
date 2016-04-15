@@ -10,7 +10,7 @@ Notes on improvements, experiments, things to be done, etc
   
 - All Hamming distances are even and <= 32. Why? Still need better hash? ** INVESTIGATE **
 - Find more efficient WARC reader? Lemur Project, Java Web Archive Toolkit (JWAT), or iipc/webarchive-commons
-- Need segment ID in mapper output name
+- Need segment ID in mapper output name - done
 
 First larger scale experiment
 -----------------------------
