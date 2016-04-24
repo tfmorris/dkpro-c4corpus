@@ -36,8 +36,8 @@
 	<properties>
 		<maven.compiler.target>1.7</maven.compiler.target>
 		<maven.compiler.source>1.7</maven.compiler.source>
-		<!-- AWS EMR is 2.6, so is our cluster -->
-		<hadoop.version>2.6.0</hadoop.version>
+		<!-- Updated to prevent problems with deprecated Guava method -->
+		<hadoop.version>2.7.1</hadoop.version>
 	</properties>
 
 	<modules>
