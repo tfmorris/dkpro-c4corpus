@@ -302,8 +302,16 @@ Profiling revealed two significant issues:
 
 ======= 4th run ========
 2016-04-13
+aborted by outbid
+
+=== run 5 with both current & original code ===
+2016-04-13
+
 switched to 16x c3.2xlarge instead of 4x8xlarge due to spot price bid jump
-Elapsed time 1h43m, 560 normalized instance hours, map reduce job 1hr31min - down from 2h19 min originally, but with zero failures now
+
+Elapsed time 1h43m, 560 normalized instance hours, map reduce job 1hr31min - down from 2h19 min originally, but with zero failure
+Cost: ~$7.68 - dashboard went from $48 to $62, but that included at least one failed run.
+c3.2xlarge spot price $0.10 + $0.105, m3.xlarge ~$0.045 + $0.14
 
 20:59 (UTC) start
 21:11 container pending drops from 780 to 510 (according to CloudWatch)
@@ -416,8 +424,6 @@ map tasks taking 18-20 minutes mostly, with some outliers at 30 minutes
         File Output Format Counters 
                 Bytes Written=1242889294
  
-=== run 4 with both current & original code ===
-aborted by outbid
 
 Gradual reduction in CPU utilization is probably caused by reduce jobs getting started "too early" is due to this default value:
 
@@ -425,3 +431,440 @@ Gradual reduction in CPU utilization is probably caused by reduce jobs getting s
 
 Since our Phase 1 is almost a map-only job, we want this to be much closer to 100% (ie 1.0)
 *confirmed* - changing this to 0.9 on job submission makes much better use of the CPUs.
+
+=== Run 6 Phase 1 & 2 together ======
+2016-04-14 1 m3.xlarge master, 2 m4.4xlarge core, 8 m4.4xlarge task
+
+16:12 UTC Start
+318 containers running in first wave
+* bad sizing! Too many task nodes for number of tasks should either go up to enough for all mappers in 1 flight
+  or down to 2 or more full flights
+16:57 first batch of containers finish (~45 min?)
+17:03 CPU utilization drops to 50% as first batch finishes
+17:14 318 completed, 82 running, 158 pending, no reducers started
+17:15 CPU Utilization drops to 20% as second batch finishes
+17:19 340 completed, 60 running, 158 pending
+17:21 368 complete, 32 running, 158 pending
+17:24 375 complete, 25 running, 158 pending - CPU utilization down to 20%
+some speculative task executions have been started
+17:27 one machine at 70% utilization, one at <50%, all others idling
+Need to figure out a way to see if we're being bottlenecked by I/O (S3 bandwidth)
+Also whether 100% CPU is max or it's ncore*100%
+17:29 382 complete, 165 running, 11 pending - last 15-16 mappers still finishing up, most reducers launched
+** too many reducers - (158?) - also means that we get 158 x # licenses x # langs output files (22,510!)
+each reducer outputs 127-154 difference language combos (avg 142), all in a single sequence
+  (ie Lic_None-Lang_English is spread out enough)
+? cut down to 50 reducers to start for 10% case to see if it can be reduced further ?
+17:31:19 Map 100%, reduce 32%
+17:32 spike in CPU when reducers launched, but now just idle waiting
+17:32:54 Reduce 100% complete
+17:34 526 completed, 32 running (doesn't match up with detailed task listing which still shows pendings & more runnings)
+17:34 Step/Phase 2 job starts
+17:35 CPU 90%+, inbound network 380 MB/s huge spike
+17:36:28 Map 100% complete, reduce 14%
+17:37:45 Reduce 100% complete
+17:38:46 Step 2 job complete
+17:40 Cluster complete
+
+Step 1 stats
+
+2016-04-15 17:34:00,713 INFO org.apache.hadoop.mapreduce.Job (main): Job job_1460737149212_0001 completed successfully
+2016-04-15 17:34:00,820 INFO org.apache.hadoop.mapreduce.Job (main): Counters: 82
+        File System Counters
+                FILE: Number of bytes read=   3661390557
+                FILE: Number of bytes written=7732362777
+                FILE: Number of read operations=0
+                FILE: Number of large read operations=0
+                FILE: Number of write operations=0
+                HDFS: Number of bytes read=91160
+                HDFS: Number of bytes written=0
+                HDFS: Number of read operations=400
+                HDFS: Number of large read operations=0
+                HDFS: Number of write operations=0
+                S3: Number of bytes read=  360221622683 (360 GB)
+                S3: Number of bytes written=31062333707 ( 31 GB)
+                S3: Number of read operations=0
+                S3: Number of large read operations=0
+                S3: Number of write operations=0
+        Job Counters 
+                Killed map tasks=18
+                Launched map tasks=418
+                Launched reduce tasks=158
+                Data-local map tasks=418
+                Total time spent by all maps in occupied slots (ms)=  49681884392
+                Total time spent by all reduces in occupied slots (ms)=8652317408
+                Total time spent by all map tasks (ms)=                 887176507 (246.4 hrs, avg 37 min/map)
+                Total time spent by all reduce tasks (ms)=               77252834
+                Total vcore-seconds taken by all map tasks=887176507
+                Total vcore-seconds taken by all reduce tasks=77252834
+                Total megabyte-seconds taken by all map tasks=1589820300544
+                Total megabyte-seconds taken by all reduce tasks=276874157056
+        Map-Reduce Framework
+                Map input records=59828572
+                Map output records=63929664
+                Map output bytes=6334364556
+                Map output materialized bytes=4000340036
+                Input split bytes=91160
+                Combine input records=0
+                Combine output records=0
+                Reduce input groups=251891
+                Reduce shuffle bytes=4000340036
+                Reduce input records=63929664
+                Reduce output records=29933477
+                Spilled Records=127859328
+                Shuffled Maps =63200
+                Failed Shuffles=0
+                Merged Map outputs=63200
+                GC time elapsed (ms)=7246769
+                CPU time spent (ms)=468906910
+                Physical memory (bytes) snapshot=555300085760
+                Virtual memory (bytes) snapshot=2238671302656
+                Total committed heap usage (bytes)=695842373632
+        Shuffle Errors
+                BAD_ID=0
+                CONNECTION=0
+                IO_ERROR=0
+                WRONG_LENGTH=0
+                WRONG_MAP=0
+                WRONG_REDUCE=0
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_COUNTER
+                Map input records=        59828572 (60M)
+                M2_WARC_NOT_HTTP_RESPONSE=39885848
+                M3_NO_HTTP_HEADER=               1
+                M4_WARC_WRONG_CONTENT_TYPE= 504128
+                M5_WARC_EMPTY_TEXT=        3456179
+                M6_WARC_OUTPUT_RECORDS=   15982416
+                R_SIMHASH_CANDIDATE_NOT_DUPLICATE=27160978171
+                R_SIMHASH_COMPARISONS=            27179223089 (27 billion)
+                R_SIMHASH_EXACT_DUPLICATE=           13283141 (13M)
+                R_SIMHASH_HASH_DIFFERENT_LANGUAGE=     483338
+                R_SIMHASH_HASH_DIFFERENT_LENGTH=     15714827
+                R_SIMHASH_NEAR_DUPLICATE=            16650336 (17M)
+                R_SIMHASH_NEAR_DUPLICATE_DIFF_LANG=   1594582
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_HAMMING_DIST
+                D04= 103099099
+                D06= 393440041
+                D08=1095524577
+                D10=2320344755
+                D12=3836024850
+                D14=5006744659
+                D16=5193026054
+                D18=4277051224
+                D20=2782855603
+                D22=1412630934
+                D24= 547971489
+                D26= 156919407
+                D28=  31250998
+                D30=   3870355
+                D32=    223347
+        File Input Format Counters 
+                Bytes Read=360221622683
+        File Output Format Counters 
+                Bytes Written=1263678323
+
+Step 2 stats
+
+2016-04-15 17:38:46,765 INFO org.apache.hadoop.mapreduce.Job (main): Job job_1460737149212_0002 completed successfully
+2016-04-15 17:38:46,898 INFO org.apache.hadoop.mapreduce.Job (main): Counters: 60
+        File System Counters
+                FILE: Number of bytes read=   120757771813 (121 GB)
+                FILE: Number of bytes written=174544760640
+                FILE: Number of read operations=0
+                FILE: Number of large read operations=0
+                FILE: Number of write operations=0
+                HDFS: Number of bytes read=218614
+                HDFS: Number of bytes written=0
+                HDFS: Number of read operations=558
+                HDFS: Number of large read operations=0
+                HDFS: Number of write operations=0
+                S3: Number of bytes read=   31062333707 (31 GB)
+                S3: Number of bytes written=17740008791 (18 GB)
+                S3: Number of read operations=0
+                S3: Number of large read operations=0
+                S3: Number of write operations=0
+        Job Counters 
+                Killed map tasks=1
+                Launched map tasks=559
+                Launched reduce tasks=158
+                Data-local map tasks=559
+                Total time spent by all maps in occupied slots (ms)=1651025992
+                Total time spent by all reduces in occupied slots (ms)=2027226208
+                Total time spent by all map tasks (ms)=29482607
+                Total time spent by all reduce tasks (ms)=18100234
+                Total vcore-seconds taken by all map tasks=29482607
+                Total vcore-seconds taken by all reduce tasks=18100234
+                Total megabyte-seconds taken by all map tasks=52832831744
+                Total megabyte-seconds taken by all reduce tasks=64871238656
+        Map-Reduce Framework
+                Map input records=  45915893
+                Map output records= 45915893
+                Map output bytes=119203740356
+                Map output materialized bytes=58224327161
+                Input split bytes=218614
+                Combine input records=0
+                Combine output records=0
+                Reduce input groups=15982416
+                Reduce shuffle bytes=58224327161
+                Reduce input records= 45915893
+                Reduce output records= 0 (all records go to side channel)
+                Spilled Records=110079629
+                Shuffled Maps =88164
+                Failed Shuffles=0
+                Merged Map outputs=88164
+                GC time elapsed (ms)=1231103
+                CPU time spent (ms)=19521240
+                Physical memory (bytes) snapshot=885913157632
+                Virtual memory (bytes) snapshot=2810798084096
+                Total committed heap usage (bytes)=1209482084352
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase2SortAndDedupe$C4P2_COUNTER
+                MAP_EXACT=                 13283141
+                MAP_NEAR=                  16650336
+                REDUCE_DUPLICATE_COPIES=   38580513
+                REDUCE_FILTERED_DUPLICATES= 8647036
+                REDUCE_OUTPUT_RECORDS=      7335380
+
+======== Run 7 - scale up to 10% sample with both Steps 1 & 2 together ==
+1 m3.xlarge master (@$0.34)+ 6 c3.8xlarge (2 core @$0.70 bid, 64 task @$0.60bid)
+spot prices ~$0.40 x 6 = $2.40 + 6 x $0.27 EMR (actual average spot price < $0.40 closer to $0.35?)
+estimated cost per hour ~$4.50
+total bill before job $97.22, after $140.99 = total cost $44 for 8hr8min (ie 9 hrs) 3136 normalized instance hours
+elapsed time 8h8h (of COURSE, just fractionally over the hour boundary)
+2016-04-15 
+21:14 Start
+29:22 End (8hr8min elapsed)
+21:23 ~6800 containers pending according to CloudFront (why so many?)
+21:37 3695 total tasks, 190 running, 3505 pending, **3600 input files / map tasks       **
+21:40 85% CPU, 155 MB/s network (170 MB/s max @startup), 7 hosts, 196 CPUs, 180 GB of 360 GB used
+21:44 4 tasks complete, 188 running, 3503 pending (maps 82, 87, 92, 102 completed first)
+21:46 114 complete, 187 running, 3394 pending
+21:52 181 completed, 190 running, 3324 pending (completed is suspicious because detail shows some running where their logs show complete)
+  map times 21-23 minutes from spot sample of first round
+  3600 input files / 190 slots = ~19 rounds * 23 minutes = 436 minutes or 7.25 hours
+22:08 316 complete, 187 running, 3192 pending
+22:10 379 complete (>10% in <47 minutes = ~450 min. estimate), 190 running, 3126 pending
+22:21 380 complete
+22:29 456 complete, 189 running, 3050 pending
+round completions: 21:48, 22:08 22:29
+23:12 890 complete, (25% (900) in 110 minutes = ~440 min. estimate) 188 running, 2617 pending
+23:49 1170 complete (~1/3 (1200) in 146 minutes = ~438 min. estimate), 190 running 2335 pending
+24:49 2209? (had ?3209?) complete, 190 running 1196 pending
+00:17 2502 completed, 190 running, 1003 pending (still 0 failed!)
+00:20 2686 completed, 190 running, 819 pending (5hrs 8 min elapsed)
+00:37 2697 complete (~3/4 in 4 1/4 hrs = est. 340 min, 6:50 = ~27:00 aka 03:00)
+00:42 2877 completed, 190 running, 628 pending
+00:47 2880 completed, 190 running, 625 pending
+01:03 3052 complete, 189 running, 454 pending
+01:38 3267 complete (90% in 6.3 hrs == ~ 7hrs), 189 running, 239 pending, 0/95 reducers running
+01:41 3304 complete, 187 running, 204 pending
+11:55(local) 3542 complete, 123 running, 30 pending, 18 reducers running
+11:59(local) 6hrs44minutes elapsed
+03:04 map  87%, reduce 0%
+03:55 map 100%, reduce 23%
+03:58 map 100%, reduce 78%
+04:03 map 100% reduce 91%
+03:38 (ganglia time) CPU utilization ratchets down from ~85% to ~70%, 5 of 6 nodes less than max utilazation
+04:07 3634 completed, 61 running (all reducers), 0 pending, 0 failed, 6h52m all maps complete, 
+04:10 3656 complete, 39 running
+04:12 3657 complete, 20 running, 0 failed
+04:14 3682 complete, 13 running
+04:35 3695 complete, 0 running, 0 failed, 0 pending, 0 cancelled
+Step 1 complete in 6h54m - 19 rounds, as predicted, rounds stayed distinct in lock step and didn't smudge together in utilization graphs
+
+04:16 Step 2 start - 3695 splits
+step 2 inbound network bandwidth peaks at 450 MB/se at startup
+step 2 sustained 350-375 MB/s inbound, 250 MB/s outbound
+04:24 map 50% reduce 0%
+04:31 map 75% reduce 8%
+04:33 map 80% reduce 10%
+04:39 2715 completed of 3745 total, 145 running, 0 failed, 888 pending
+04:38 map 95% reduce 16%
+04:40 map 100% reduce 18%
+04:43 map 100% reduce 25%
+04:46 map 100% reduce 33%
+04:47 3694 complete, 51 running, 0 failed, 0 pending, 0 cancelled 
+04:50 map 100% reduce 50%
+04:53 map 100% reduce 63%
+04:49 50 running (all 50 reducers running) -- rewriting entire database in sorted order!
+  bottlenecked on reducer capacity outputting to sorted files 
+  (conscious tradeoff to minimize number of files)
+04:58 map 100% reduce 75%
+05:10 3715 complete, 30 running (20 of 50 reducers done)
+05:02 map 100% reduce 90% (controller sysylog)
+05:08 map 100% reduce 95%
+05:13 map 100% reduce 98%
+05:15 15 tasks running
+05:20 cluster terminating
+
+Step 1 6hr54min
+Step 2 1hr3min
+
+Total cost $44, ~$5/hr
+Estimate for entire crawl 81hrs (on same small 6-node cluster), $405 (at the same spot prices)
+
+Step 1 stats
+
+2016-04-16 04:16:05,852 INFO org.apache.hadoop.mapreduce.Job (main): Job job_1460755206721_0001 completed successfully
+2016-04-16 04:16:05,955 INFO org.apache.hadoop.mapreduce.Job (main): Counters: 82
+        File System Counters
+                FILE: Number of bytes read=   32738767448 (33 GB)
+                FILE: Number of bytes written=70746802057 (71 GB)
+                FILE: Number of read operations=0
+                FILE: Number of large read operations=0
+                FILE: Number of write operations=0
+                HDFS: Number of bytes read=820440
+                HDFS: Number of bytes written=0
+                HDFS: Number of read operations=3600
+                HDFS: Number of large read operations=0
+                HDFS: Number of write operations=0
+                S3: Number of bytes read=  3240854695944 (3.2 TB)
+                S3: Number of bytes written=279212541369 (279 GB)
+                S3: Number of read operations=0
+                S3: Number of large read operations=0
+                S3: Number of write operations=0
+        Job Counters 
+                Killed map tasks=1
+                Launched map tasks=3601
+                Launched reduce tasks=95
+                Data-local map tasks=3601
+                Total time spent by all maps in occupied slots (ms)= 229921991624
+                Total time spent by all reduces in occupied slots (ms)=9368770944
+                Total time spent by all map tasks (ms)=                4421576762
+                Total time spent by all reduce tasks (ms)=               90084336
+                Total vcore-seconds taken by all map tasks=            4421576762
+                Total vcore-seconds taken by all reduce tasks=           90084336
+                Total megabyte-seconds taken by all map tasks=      7357503731968
+                Total megabyte-seconds taken by all reduce tasks=    299800670208
+        Map-Reduce Framework
+                Map input records= 538184502
+                Map output records=575090060
+                Map output bytes=             56981843280
+                Map output materialized bytes=37541804822
+                Input split bytes=820440
+                Combine input records=0
+                Combine output records=0
+                Reduce input groups=261981
+                Reduce shuffle bytes=37541804822
+                Reduce input records= 575090060
+                Reduce output records=285705432 (286M)
+                Spilled Records=1150180120
+                Shuffled Maps =342000
+                Failed Shuffles=0
+                Merged Map outputs=342000
+                GC time elapsed (ms)=80631123
+                CPU time spent (ms)=4422854160
+                Physical memory (bytes) snapshot=4082828414976
+                Virtual memory (bytes) snapshot=13084950552576
+                Total committed heap usage (bytes)=3954309070848
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_COUNTER
+                Map input records=                   538184502 (538M)
+                M2_WARC_NOT_HTTP_RESPONSE=           358790868
+                M3_NO_HTTP_HEADER=                           3
+                M4_WARC_WRONG_CONTENT_TYPE=            4526545
+                M5_WARC_EMPTY_TEXT=                   31094571
+                M6_WARC_OUTPUT_RECORDS=              143772515 (144M)
+                R_SIMHASH_CANDIDATE_NOT_DUPLICATE=359502913788
+                R_SIMHASH_COMPARISONS=            359685188462
+                R_SIMHASH_EXACT_DUPLICATE=           132807309
+                R_SIMHASH_HASH_DIFFERENT_LANGUAGE=    10676729
+                R_SIMHASH_HASH_DIFFERENT_LENGTH=     241220266
+                R_SIMHASH_NEAR_DUPLICATE=            152898123
+                R_SIMHASH_NEAR_DUPLICATE_DIFF_LANG=   29376551
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_HAMMING_DIST
+                D04= 1139097042
+                D06= 4618740678
+                D08=13352217183
+                D10=29056957247
+                D12=49008352367
+                D14=65236807291
+                D16=68992843280
+                D18=58120175591
+                D20=38737660036
+                D22=20216975475
+                D24= 8075156767
+                D26= 2388699390
+                D28=  492173613
+                D30=   63218346
+                D32=    3816026
+        File Input Format Counters 
+                Bytes Read=3240854695944
+        File Output Format Counters 
+                Bytes Written=11094940405
+
+
+Step 2 stats
+
+016-04-16 05:16:17,887 INFO org.apache.hadoop.mapreduce.Job (main):  map 100% reduce 100%
+2016-04-16 05:19:41,506 INFO org.apache.hadoop.mapreduce.Job (main): Job job_1460755206721_0002 completed successfully
+2016-04-16 05:19:41,753 INFO org.apache.hadoop.mapreduce.Job (main): Counters: 60
+        File System Counters
+                FILE: Number of bytes read=   1072848852800
+                FILE: Number of bytes written=1582483663770
+                FILE: Number of read operations=0
+                FILE: Number of large read operations=0
+                FILE: Number of write operations=0
+                HDFS: Number of bytes read=1525635
+                HDFS: Number of bytes written=0
+                HDFS: Number of read operations=3695
+                HDFS: Number of large read operations=0
+                HDFS: Number of write operations=0
+                S3: Number of bytes read=   279212541369 (279 GB)
+                S3: Number of bytes written=179773222782 (180 GB)
+                S3: Number of read operations=0
+                S3: Number of large read operations=0
+                S3: Number of write operations=0
+        Job Counters 
+                Killed map tasks=2
+                Launched map tasks=3697
+                Launched reduce tasks=50
+                Data-local map tasks=3697
+                Total time spent by all maps in occupied slots (ms)=9163909404
+                Total time spent by all reduces in occupied slots (ms)=13271137152
+                Total time spent by all map tasks (ms)=   176229027
+                Total time spent by all reduce tasks (ms)=127607088
+                Total vcore-seconds taken by all map tasks=176229027
+                Total vcore-seconds taken by all reduce tasks=127607088
+                Total megabyte-seconds taken by all map tasks=293245100928
+                Total megabyte-seconds taken by all reduce tasks=424676388864
+        Map-Reduce Framework
+                Map input records= 429477947 (429M = 144M WARCs + 286M duplicates to be deleted)
+                Map output records=429477947
+                Map output bytes=1078091213591
+                Map output materialized bytes=523282217623
+                Input split bytes=1525635
+                Combine input records=0
+                Combine output records=0
+                Reduce input groups=    143772515
+                Reduce shuffle bytes=523282217623
+                Reduce input records=   429477947 (avg 3 per group)
+                Reduce output records=0
+                Spilled Records=1288433841
+                Shuffled Maps =184750
+                Failed Shuffles=0
+                Merged Map outputs=184750
+                GC time elapsed (ms)=8539738
+                CPU time spent (ms)=157174510
+                Physical memory (bytes) snapshot=3826380689408
+                Virtual memory (bytes) snapshot=13180656828416
+                Total committed heap usage (bytes)=4967435862016
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase2SortAndDedupe$C4P2_COUNTER
+                MAP_EXACT=                132807309
+                MAP_NEAR=                 152898123
+                REDUCE_DUPLICATE_COPIES=  362764917
+                Reduce input groups=      143772515 (144M)
+                REDUCE_FILTERED_DUPLICATES=77059485 filtered more than half as duplicates
+                REDUCE_OUTPUT_RECORDS=     66713030 (66.7 million pages)
+        File Input Format Counters 
+                Bytes Read=0
+        File Output Format Counters 
+                Bytes Written=1000
+
+
+
+
+
+
+
+
+
+
+
