@@ -20,6 +20,7 @@
 package de.tudarmstadt.ukp.dkpro.c4corpus.warc.io;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -196,15 +197,17 @@ public class WARCRecord
      */
     public String getHTTPHeaders()
     {
-        String rawContent = new String(this.content);
-
-        if (rawContent.startsWith("HTTP")) {
-            int newLineIndex = rawContent.indexOf("\r\n\r\n");
-            if (newLineIndex > 0) {
-                return rawContent.substring(0, newLineIndex);
+        // The HTTTP/1.1 header is constrained to US-ASCII
+        // this version takes 72 msec vs 10,886 msec in old implementation for test case
+        String statusPrefix = new String(this.content, 0, 5, StandardCharsets.US_ASCII);
+        if ("HTTP/".equals(statusPrefix)) {
+            for (int i = 0; i < this.content.length; i++) {
+                if (this.content[i] == 13 && this.content[i + 1] == 10 && this.content[i + 2] == 13
+                        && this.content[i + 3] == 10) {
+                    return new String(this.content, 0, i, StandardCharsets.US_ASCII);
+                }
             }
         }
-
         return null;
     }
 
