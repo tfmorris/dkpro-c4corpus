@@ -129,13 +129,13 @@ public class JusTextBoilerplateRemoval
      * <li>short – too short to make a reliable decision about the class
      * <li>near-good – somewhere in-between short and good
      */
-    private void classifyContextFree(List<Paragraph> paragraphs, Set<String> stopListLower,
+    private void classifyContextFree(List<Paragraph> paragraphs, Set<String> stopListLower, Locale locale,
             int lengthLow, int lengthHigh, double stopwordsLow,
             double stopwordsHigh, double maxLinkDensity)
     {
         for (Paragraph paragraph : paragraphs) {
             int length = paragraph.getRawText().length();
-            float stopWordDensity = paragraph.stopwords_density(stopListLower);
+            float stopWordDensity = paragraph.stopwords_density(stopListLower, locale);
             double link_density = paragraph.calcLinksDensity();
 
             if ("select".equalsIgnoreCase(paragraph.getTagName())) {
@@ -393,7 +393,7 @@ public class JusTextBoilerplateRemoval
      * Converts an HTML page into a list of classified paragraphs. Each
      * paragraph is represented as instance of class "Paragraph"
      */
-    private List<Paragraph> classify(String htmlText, Set<String> stopwordsSet, int lengthLow,
+    private List<Paragraph> classify(String htmlText, Set<String> stopwordsSet, Locale locale, int lengthLow,
             int lengthHigh, double stopwordsLow, double stopwordsHigh, double maxLinkDensity,
             int maxHeadingDistance)
     {
@@ -408,7 +408,7 @@ public class JusTextBoilerplateRemoval
         Document jSoupDoc = convertHtmlToDoc(htmlText);
         ArrayList<Paragraph> paragraphs = makeParagraphs(jSoupDoc);
         //context-free classification
-        classifyContextFree(paragraphs, stopwordsSet, lengthLow, lengthHigh,
+        classifyContextFree(paragraphs, stopwordsSet, locale, lengthLow, lengthHigh,
                 stopwordsLow, stopwordsHigh, maxLinkDensity);
         //context-sensitive classification.
         reclassifyContextSensitive(paragraphs, maxHeadingDistance);
@@ -442,7 +442,8 @@ public class JusTextBoilerplateRemoval
             stopwordsSet = lazyStopwordMap.get(locale);
         }
 
-        return classify(htmlText, stopwordsSet, JusTextBoilerplateRemoval.LENGTH_LOW_DEFAULT,
+        return classify(htmlText, stopwordsSet, locale, 
+                JusTextBoilerplateRemoval.LENGTH_LOW_DEFAULT,
                 JusTextBoilerplateRemoval.LENGTH_HIGH_DEFAULT,
                 JusTextBoilerplateRemoval.STOPWORDS_LOW_DEFAULT,
                 JusTextBoilerplateRemoval.STOPWORDS_HIGH_DEFAULT,

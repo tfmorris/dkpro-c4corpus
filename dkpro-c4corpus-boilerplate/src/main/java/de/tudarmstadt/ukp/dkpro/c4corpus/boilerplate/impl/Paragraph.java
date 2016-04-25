@@ -22,6 +22,7 @@ import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -128,9 +129,10 @@ public class Paragraph
 
     /**
      * @param stopwords set of stopwords, assumed to be already lowercased
+     * @param locale locale to be used when lowercasing words
      * @return number from 0.0 to 1.0 representing proportion of stop words
      */
-    public float stopwords_density(Set<String> stopwords)
+    public float stopwords_density(Set<String> stopwords, Locale locale)
     {
         String[] words = WHITESPACE.split(this.getRawText());
         if (words.length == 0) {
@@ -138,8 +140,12 @@ public class Paragraph
         }
         int stopWords = 0;
         for (String word : words) {
-            // FIXME: We need the locale here to do this correctly
-            if (stopwords.contains(word.toLowerCase())) {
+            if (locale == null) {
+                word = word.toLowerCase();
+            } else {
+                word = word.toLowerCase(locale);
+            }
+            if (stopwords.contains(word)) {
                 stopWords += 1;
             }
         }
