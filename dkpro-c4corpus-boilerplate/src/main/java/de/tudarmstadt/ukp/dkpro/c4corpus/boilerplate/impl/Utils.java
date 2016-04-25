@@ -22,10 +22,9 @@ import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashSet;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -76,7 +75,7 @@ public class Utils
      * @return set of stop words
      * @throws IOException exception
      */
-    public static Set<String> loadStopWords(Locale locale)
+    public static List<String> loadStopWords(Locale locale)
             throws IOException
     {
 
@@ -87,9 +86,10 @@ public class Utils
             throw new IOException("Stream " + streamName + " not found");
         }
 
-        List<String> stopList = IOUtils.readLines(stream);
-        return new HashSet<>(stopList);
+        // Our Linux systems probably have UTF-8 as the default, but make sure
+        List<String> stopList = IOUtils.readLines(stream, StandardCharsets.UTF_8);
 
+        return stopList;
     }
 
     private static final String WHITESPACE_CHARS = "" + "\\u0009" // CHARACTER TABULATION

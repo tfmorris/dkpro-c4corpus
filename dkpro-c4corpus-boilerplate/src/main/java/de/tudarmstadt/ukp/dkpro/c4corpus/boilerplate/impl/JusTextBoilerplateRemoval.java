@@ -129,15 +129,10 @@ public class JusTextBoilerplateRemoval
      * <li>short – too short to make a reliable decision about the class
      * <li>near-good – somewhere in-between short and good
      */
-    private void classifyContextFree(List<Paragraph> paragraphs, Set<String> stoplist,
+    private void classifyContextFree(List<Paragraph> paragraphs, Set<String> stopListLower,
             int lengthLow, int lengthHigh, double stopwordsLow,
             double stopwordsHigh, double maxLinkDensity)
     {
-        // TODO: Move stop list initialization out of band
-        Set<String> stopListLower = new HashSet<>();
-        for (String word : stoplist) {
-            stopListLower.add(word.toLowerCase().trim());
-        }
         for (Paragraph paragraph : paragraphs) {
             int length = paragraph.getRawText().length();
             float stopWordDensity = paragraph.stopwords_density(stopListLower);
@@ -316,6 +311,7 @@ public class JusTextBoilerplateRemoval
         //re-classify short
         //a new data structure is used for storage as we don't want to mess the
         //original classification. It will be used by other parts of the code later.       
+        // TODO: Is a LinkedHashMap needed here?
         Map<Integer, PARAGRAPH_TYPE> newClasses = new LinkedHashMap<>();
 
         for (int i = 0; i < paragraphs.size(); i++) {
@@ -323,6 +319,7 @@ public class JusTextBoilerplateRemoval
                 PARAGRAPH_TYPE prevNeighbour = getPrevNeighbourOptimized(i, paragraphs, true); // ignore_neargood
                 PARAGRAPH_TYPE nextNeighbour = getNextNeighbourOptimized(i, paragraphs, true); // ignore_neargood
 
+                // TODO: Is a LinkedHashSet needed here?
                 Set<PARAGRAPH_TYPE> neighbours = new LinkedHashSet<>();
                 neighbours.add(prevNeighbour);
                 neighbours.add(nextNeighbour);
@@ -426,16 +423,22 @@ public class JusTextBoilerplateRemoval
             throws IOException
     {
 
-        //activate the language-independent mode if language is set to null
         Set<String> stopwordsSet;
-        if (locale != null && !lazyStopwordMap.containsKey(locale)) {
-            lazyStopwordMap.put(locale, Utils.loadStopWords(locale));
-        }
+        //activate the language-independent mode if language is set to null
         if (locale == null) {
             stopwordsSet = new HashSet<>();
         }
+        else if (!lazyStopwordMap.containsKey(locale)) {
+            List<String> stopWords = Utils.loadStopWords(locale);
+            stopwordsSet = new HashSet<>(stopWords.size());
+            for (String word : stopWords) {
+                // We always use these lowercased, so do it at initialization
+                stopwordsSet.add(word.toLowerCase(locale));
+            }
+            lazyStopwordMap.put(locale, stopwordsSet);
+        }
+
         else {
-            //            stopwordsSet = Utils.loadStopWords(language);
             stopwordsSet = lazyStopwordMap.get(locale);
         }
 

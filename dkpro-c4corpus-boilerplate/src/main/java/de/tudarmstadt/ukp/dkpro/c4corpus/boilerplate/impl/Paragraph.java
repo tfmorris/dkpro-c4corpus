@@ -126,6 +126,10 @@ public class Paragraph
         this.rawText = rawText;
     }
 
+    /**
+     * @param stopwords set of stopwords, assumed to be already lowercased
+     * @return number from 0.0 to 1.0 representing proportion of stop words
+     */
     public float stopwords_density(Set<String> stopwords)
     {
         String[] words = WHITESPACE.split(this.getRawText());
@@ -134,6 +138,7 @@ public class Paragraph
         }
         int stopWords = 0;
         for (String word : words) {
+            // FIXME: We need the locale here to do this correctly
             if (stopwords.contains(word.toLowerCase())) {
                 stopWords += 1;
             }
