@@ -10,14 +10,14 @@ aws s3 --profile cc-user \
 # Subnet subnet-d9c972f2 us-east-1e
 # 2016-07 crawl - 100 segments of 350 files each
 # 100 file sample <crawlbase>/segments/*/warc/*-00001-*.warc.gz",
-# 400 file sample <crawlbase>/segments/*/warc/*-00[0-3]01-*.warc.gz",
+# 400 file sample (~1.1%) <crawlbase>/segments/*/warc/*-00[0-3]01-*.warc.gz",
 # 1000 file sample <crawlbase>/segments/*/warc/*-000[0-9]0-*.warc.gz",
 # 2% sample (700 files) <crawlbase>/segments/*/warc/*-0000[1-7]-*.warc.gz",
 # ~10% sample (3600 files) <crawlbase>/segments/*/warc/*-00[0-3]0[1-9]-*.warc.gz",
 # 4000 file sample <crawlbase>/segments/*/warc/*-00[0-3]0[0-9]-*.warc.gz",
 echo "Creating cluster"
 aws emr create-cluster \
-    --name "C4Corpus phase 1 - 1.0.1-SNAPSHOT new-dataflow - 2 x c3.8large + 4 x c3.8xlarge 10% sample $CRAWL" \
+    --name "C4Corpus phase 1 - 1.0.1-SNAPSHOT new-dataflow simhash2 - 2 x m4.4large + 8 x m4.4xlarge 1% sample $CRAWL" \
     --profile cc-user \
     --auto-terminate \
     --region us-east-1 \
@@ -53,10 +53,10 @@ aws emr create-cluster \
         "-D", "mapreduce.map.maxattempts=2",
         "-D", "mapreduce.job.reduce.slowstart.completedmaps=0.95",
         "-D", "c4corpus.keepminimalhtml=true",
-        "s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-'$CRAWL'/segments/*/warc/*-00[0-3]0[1-9]-*.warc.gz",
-        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-10pct-new-dataflow"],
+        "s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-'$CRAWL'/segments/*/warc/*-00[0-3]01-*.warc.gz",
+        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-400file-new-dataflow"],
         "Type":"CUSTOM_JAR",
-        "ActionOnFailure":"CANCEL_AND_WAIT",
+        "ActionOnFailure":"TERMINATE",
         "Jar":"s3://tfmorris/c4corpus/dkpro-c4corpus-hadoop-1.0.1-SNAPSHOT-standalone.jar",
         "Properties":"",
         "Name":"C4Corpus Phase 1 new"},
@@ -66,26 +66,26 @@ aws emr create-cluster \
         "-D", "mapreduce.map.maxattempts=2",
         "-D", "mapreduce.job.reduce.slowstart.completedmaps=0.5",
         "-D", "mapreduce.job.reduces=50",
-        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-10pct-new-dataflow/part*",
-        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-10pct-new-dataflow/*/*.warc.gz",
-        "s3://tfmorris/c4corpus/cc-phase2out-'$CRAWL'-10pct-new-dataflow"],
+        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-400file-new-dataflow/part*",
+        "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-400file-new-dataflow/*/*.warc.gz",
+        "s3://tfmorris/c4corpus/cc-phase2out-'$CRAWL'-400file-new-dataflow"],
         "Type":"CUSTOM_JAR",
-        "ActionOnFailure":"CANCEL_AND_WAIT",
+        "ActionOnFailure":"TERMINATE",
         "Jar":"s3://tfmorris/c4corpus/dkpro-c4corpus-hadoop-1.0.1-SNAPSHOT-standalone.jar",
         "Properties":"",
         "Name":"C4Corpus Phase 2 new"}
         ]' \
     --instance-groups '[
-        {"InstanceCount":4,
-            "BidPrice":"0.60",
+        {"InstanceCount":8,
+            "BidPrice":"0.50",
             "InstanceGroupType":"TASK",
-            "InstanceType":"c3.8xlarge",
-            "Name":"Task - 4 x c3.8xlarge"},
+            "InstanceType":"m4.4xlarge",
+            "Name":"Task - 8 x m4.4xlarge"},
         {"InstanceCount":2,
             "BidPrice":"0.70",
             "InstanceGroupType":"CORE",
-            "InstanceType":"c3.8xlarge",
-            "Name":"Core - 2 x c3.8xlarge"},
+            "InstanceType":"m4.4xlarge",
+            "Name":"Core - 2 x m4.4xlarge"},
         {"InstanceCount":1,
             "InstanceGroupType":"MASTER",
             "InstanceType":"m3.xlarge",
