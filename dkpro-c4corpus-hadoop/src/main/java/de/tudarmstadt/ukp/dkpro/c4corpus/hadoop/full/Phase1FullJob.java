@@ -323,7 +323,7 @@ public class Phase1FullJob
             final String language = LANGUAGE_IDENTIFIER.identifyLanguage(plainText);
 
             // compute simhash
-            long docSimHash = SimHashUtils.getSimHash(plainText);
+            long docSimHash = SimHashUtils.getSimHash2(plainText);
 
             WARCRecord.Header header = value.getRecord().getHeader();
 

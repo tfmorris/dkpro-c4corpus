@@ -255,6 +255,8 @@ public class SimHashUtils
     /**
      * Returns simHash of the given document
      *
+     * @deprecated {{@link #getSimHash2(String)} is faster and produces 64-bit instead of 32-bit
+     *             hashes.
      * @param text plain text
      * @return simhash
      */
@@ -265,6 +267,12 @@ public class SimHashUtils
         return SimHashUtils.simHash(hashPhrases);
     }
 
+    /**
+     * Returns SimHash of the given document.
+     *
+     * @param text text to be hashed
+     * @return simhash
+     */
     public static long getSimHash2(String text)
     {
         long[] hashPhrases = 
