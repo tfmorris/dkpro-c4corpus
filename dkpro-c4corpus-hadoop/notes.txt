@@ -464,7 +464,7 @@ each reducer outputs 127-154 difference language combos (avg 142), all in a sing
 17:36:28 Map 100% complete, reduce 14%
 17:37:45 Reduce 100% complete
 17:38:46 Step 2 job complete
-17:40 Cluster complete
+17:40 Cluster complete 1hr30 min
 
 Step 1 stats
 
@@ -589,7 +589,7 @@ Step 2 stats
                 Data-local map tasks=559
                 Total time spent by all maps in occupied slots (ms)=1651025992
                 Total time spent by all reduces in occupied slots (ms)=2027226208
-                Total time spent by all map tasks (ms)=29482607
+                Total time spent by all map tasks (ms)=   29482607
                 Total time spent by all reduce tasks (ms)=18100234
                 Total vcore-seconds taken by all map tasks=29482607
                 Total vcore-seconds taken by all reduce tasks=18100234
@@ -624,6 +624,7 @@ Step 2 stats
                 REDUCE_OUTPUT_RECORDS=      7335380
 
 ======== Run 7 - scale up to 10% sample with both Steps 1 & 2 together ==
+
 1 m3.xlarge master (@$0.34)+ 6 c3.8xlarge (2 core @$0.70 bid, 64 task @$0.60bid)
 spot prices ~$0.40 x 6 = $2.40 + 6 x $0.27 EMR (actual average spot price < $0.40 closer to $0.35?)
 estimated cost per hour ~$4.50
@@ -659,7 +660,7 @@ round completions: 21:48, 22:08 22:29
 11:55(local) 3542 complete, 123 running, 30 pending, 18 reducers running
 11:59(local) 6hrs44minutes elapsed
 03:04 map  87%, reduce 0%
-03:55 map 100%, reduce 23%
+03:55 map 100%, reduce 23% (6h45 minutes to complete all maps)
 03:58 map 100%, reduce 78%
 04:03 map 100% reduce 91%
 03:38 (ganglia time) CPU utilization ratchets down from ~85% to ~70%, 5 of 6 nodes less than max utilazation
@@ -667,7 +668,7 @@ round completions: 21:48, 22:08 22:29
 04:10 3656 complete, 39 running
 04:12 3657 complete, 20 running, 0 failed
 04:14 3682 complete, 13 running
-04:35 3695 complete, 0 running, 0 failed, 0 pending, 0 cancelled
+04:35 3695 complete, 0 running, 0 failed, 0 pending, 0 cancelled (40 min elapsed for reduce phase)
 Step 1 complete in 6h54m - 19 rounds, as predicted, rounds stayed distinct in lock step and didn't smudge together in utilization graphs
 
 04:16 Step 2 start - 3695 splits
@@ -695,9 +696,10 @@ step 2 sustained 350-375 MB/s inbound, 250 MB/s outbound
 05:15 15 tasks running
 05:20 cluster terminating
 
-Step 1 6hr54min
-Step 2 1hr3min
+Step 1 6hr54min (avg map 21.5 min, reduce 40 min. total)
+Step 2 1hr3min (14 min. all maps, 50 min. reduce, overlapped with map)
 
+Total time 8hr8min
 Total cost $44, ~$5/hr
 Estimate for entire crawl 81hrs (on same small 6-node cluster), $405 (at the same spot prices)
 
@@ -728,7 +730,7 @@ Step 1 stats
                 Data-local map tasks=3601
                 Total time spent by all maps in occupied slots (ms)= 229921991624
                 Total time spent by all reduces in occupied slots (ms)=9368770944
-                Total time spent by all map tasks (ms)=                4421576762
+                Total time spent by all map tasks (ms)=                4421576762 (20.5 min/map)
                 Total time spent by all reduce tasks (ms)=               90084336
                 Total vcore-seconds taken by all map tasks=            4421576762
                 Total vcore-seconds taken by all reduce tasks=           90084336
@@ -858,13 +860,269 @@ Step 2 stats
         File Output Format Counters 
                 Bytes Written=1000
 
+======= Run 8 retest 1% sample with new-dataflow *and missing simhash2 mod* ================== 
+1 master + 2 x m4x4xlarge core + 12 x m4.4xlarge task
+30 containers per node (30 cores, 52.5 GB used, 3.5 GB available)
 
+Total elapsed time - 57 minutes
+Total cost $11.46 (charged for 2 hrs? estimated $5.98/hr)
+Step 1 - 40 minutes
+  map - 228 hrs, avg 34.2 minutes/task, 10% faster than run 6
+Step 2 - 5 minutes
+9 min setup time
+36 min to complete 100% of maps
+1:30 to finish reduces
+1:50 to clean up / wind down...
 
+Step 1 stats
 
+2016-04-25 23:11 Step 1 start
+2016-04-26 03:51:48,815 INFO org.apache.hadoop.mapreduce.Job (main): Job job_1461640034557_0001 completed successfully
+2016-04-26 03:51:48,934 INFO org.apache.hadoop.mapreduce.Job (main): Counters: 97
+        File System Counters
+                FILE: Number of bytes read=3777086202
+                FILE: Number of bytes written=8118173660
+                FILE: Number of read operations=0
+                FILE: Number of large read operations=0
+                FILE: Number of write operations=0
+                HDFS: Number of bytes read=91160
+                HDFS: Number of bytes written=0
+                HDFS: Number of read operations=400
+                HDFS: Number of large read operations=0
+                HDFS: Number of write operations=0
+                S3: Number of bytes read=360221622683
+                S3: Number of bytes written=30555790829
+                S3: Number of read operations=0
+                S3: Number of large read operations=0
+                S3: Number of write operations=0
+        Job Counters 
+                Killed map tasks=1
+                Launched map tasks=401
+                Launched reduce tasks=221
+                Data-local map tasks=401
+                Total time spent by all maps in occupied slots (ms)=46026018752
+                Total time spent by all reduces in occupied slots (ms)=1294476960
+                Total time spent by all map tasks (ms)=       821893192 (228 hrs, 34.2 minutes/task average)
+                Total time spent by all reduce tasks (ms)=     11557830
+                Total vcore-seconds taken by all map tasks=   821893192
+                Total vcore-seconds taken by all reduce tasks= 11557830
+                Total megabyte-seconds taken by all map tasks=1472832600064
+                Total megabyte-seconds taken by all reduce tasks=41423262720
+        Map-Reduce Framework
+                Map input records=    59828572
+                Map output records=   63929664
+                Map output bytes=6345002000
+                Map output materialized bytes=4262037860
+                Input split bytes=91160
+                Combine input records=0
+                Combine output records=0
+                Reduce input groups=262140
+                Reduce shuffle bytes=4262037860
+                Reduce input records= 63929664
+                Reduce output records=19861581
+                Spilled Records=127859328
+                Shuffled Maps =88400
+                Failed Shuffles=0
+                Merged Map outputs=88400
+                GC time elapsed (ms)=6689488
+                CPU time spent (ms)=452396770
+                Physical memory (bytes) snapshot=589668790272
+                Virtual memory (bytes) snapshot=2562977787904
+                Total committed heap usage (bytes)=790892642304
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_COUNTER
+                Map input records=                   59828572 (60M)
+                M2_WARC_NOT_HTTP_RESPONSE=           39885848
+                M3_NO_HTTP_HEADER=                          1
+                M4_WARC_WRONG_CONTENT_TYPE=            504128
+                M5_WARC_EMPTY_TEXT=                   3456179
+                M6_WARC_OUTPUT_RECORDS=              15982416 (16M)
+                R_SIMHASH_CANDIDATE_NOT_DUPLICATE=35674380150
+                R_SIMHASH_COMPARISONS=            35680070932
+                R_SIMHASH_EXACT_DUPLICATE=           14392332
+                R_SIMHASH_HASH_DIFFERENT_LANGUAGE=     178842
+                R_SIMHASH_HASH_DIFFERENT_LENGTH=      5568782
+                R_SIMHASH_NEAR_DUPLICATE=             5469249
+                R_SIMHASH_NEAR_DUPLICATE_DIFF_LANG=    221533
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase1FullJob$C4_HAMMING_DIST
+                D03=  11719331
+                D04=  29860282
+                D05=  69601749
+                D06= 148689395
+                D07= 289587465
+                D08= 511065886
+                D09= 816553570
+                D10=1187132860
+                D11=1584373914
+                D12=1962232940
+                D13=2281408335
+                D14=2517510949
+                D15=2663241483
+                D16=2722563977
+                D17=2704734500
+                D18=2619646496
+                D19=2474284557
+                D20=2274768637
+                D21=2028801445
+                D22=1746988092
+                D23=1444919279
+                D24=1141933660
+                D25= 858068150
+                D26= 610073046
+                D27= 408705049
+                D28= 256907018
+                D29= 150978391
+                D30=  82632096
+                D31=  41964781
+                D32=  19715135
+        File Input Format Counters 
+                Bytes Read=360221622683
+        File Output Format Counters 
+                Bytes Written=751967571
+  
+Step 2 stats
 
+2016-04-26 03:56:50,731 INFO org.apache.hadoop.mapreduce.Job (main): Job job_1461640034557_0002 completed successfully
+2016-04-26 03:56:50,859 INFO org.apache.hadoop.mapreduce.Job (main): Counters: 60
+        File System Counters
+                FILE: Number of bytes read=117392216292
+                FILE: Number of bytes written=174165031611
+                FILE: Number of read operations=0
+                FILE: Number of large read operations=0
+                FILE: Number of write operations=0
+                HDFS: Number of bytes read=240835
+                HDFS: Number of bytes written=0
+                HDFS: Number of read operations=621
+                HDFS: Number of large read operations=0
+                HDFS: Number of write operations=0
+                S3: Number of bytes read=   30555790829 (30.6 GB)
+                S3: Number of bytes written=24714830696 (24.7 GB)
+                S3: Number of read operations=0
+                S3: Number of large read operations=0
+                S3: Number of write operations=0
+        Job Counters 
+                Killed map tasks=1
+                Launched map tasks=622
+                Launched reduce tasks=50
+                Data-local map tasks=622
+                Total time spent by all maps in occupied slots (ms)=1594870200
+                Total time spent by all reduces in occupied slots (ms)=959380800
+                Total time spent by all map tasks (ms)=   28479825
+                Total time spent by all reduce tasks (ms)= 8565900
+                Total vcore-seconds taken by all map tasks=28479825
+                Total vcore-seconds taken by all reduce tasks=8565900
+                Total megabyte-seconds taken by all map tasks=51035846400
+                Total megabyte-seconds taken by all reduce tasks=30700185600
+        Map-Reduce Framework
+                Map input records=35843997
+                Map output records=35843997
+                Map output bytes=115912631800
+                Map output materialized bytes=58125851861
+                Input split bytes=240835
+                Combine input records=0
+                Combine output records=0
+                Reduce input groups=15982416
+                Reduce shuffle bytes=58125851861
+                Reduce input records=35843997
+                Reduce output records=0
+                Spilled Records=87670410
+                Shuffled Maps =31050
+                Failed Shuffles=0
+                Merged Map outputs=31050
+                GC time elapsed (ms)=1114724
+                CPU time spent (ms)=17348520
+                Physical memory (bytes) snapshot=796978995200
+                Virtual memory (bytes) snapshot=2473356546048
+                Total committed heap usage (bytes)=1000964358144
+        de.tudarmstadt.ukp.dkpro.c4corpus.hadoop.full.Phase2SortAndDedupe$C4P2_COUNTER
+                MAP_EXACT=                 14392332
+                MAP_NEAR=                   5469249
+                REDUCE_DUPLICATE_COPIES=   25980482
+                REDUCE_FILTERED_DUPLICATES= 6118901
+                REDUCE_OUTPUT_RECORDS=      9863515
+        File Input Format Counters 
+                Bytes Read=0
+        File Output Format Counters 
+                Bytes Written=1000
 
+==== Run 9 10% sample with correct simhash2 
+1 m3.xlarge master, 2 c3.8xlarge core @$0.61, 14 c3.8xlarge task @$0.51
+$158.35 start $10.26/hr est.
+Elapsed 4hr 45 min
+$182.90 end $24.55 cost
 
+511 containers, 32 containers per node
+3853 total tasks = 3600 map tasks + 253 reducers
+7 waves of mappers @20 min each = est. 140 min 2hr20min
+actual map complete in 2h35m
 
+22:08 (UTC-4) cluster created
+02:18 Ganglia shows cluster alive
+22:24 cluster provisioned (although Step 1 showed immediately as having been running for 5 min.)
+02:23 cluster up to full load
+02:26 network traffic at 450 MB/s inbound aggregate (peaks @465 MB/s, > 440MB/s for 4 min, avg 380 MB/s)
+02:43 1st map wave complete
+03:02 2nd map wave complete
+03:09 938 tasks complete, 508 running, 2407 pending, 0 failed or cancelled
+      Ganglia solid 94% CPU utilization, mappers ~20 min avg. based on memory utilization
+      outbound traffic burst < 4 min w/peak @327 MB/s)
+03:20 988 complete, 510 running, 2355 pending
+03:21 3rd map wave complete
+03:34 1497 complete, 510 running, 1846 pending - mappers almost 50% done after 1h27m
+03:41 4th map wave complete
+11:42 1540 complete, 510 running, 1803 pending - 90 min elapsed, 80 min remaining (4 waves @20 min.)
+11:50 1930 complete, 507 running, 1416 pending - 102 min elapsed
+est 03:58 next wave completes
+est 04:40 mappers complete
+04:00 5th wave complete
+04:19 6th wave complete
+23:20 2691 complete, 508 running, 654 pending (current wave + ~400 maps to complete)
+est 4:50-4:59 all mappers complete
+23:27 2972 complete, 510 running, 371 pending
+  mapper cadence looks closer to 19 min than 20 min
+  throughput could probably be improved by staggered start
+23:36 Ganglia CPU utilization drops dramaticall from 95% at 04:36 to 25% at 04:39
+23:38 3167 complete, 433 running, 253 pending (all reducers)
+23:38 Ganglia Network traffic huge spike 667 MB/s in, 620 MB/s out (feeding shufflers/reducers?)
+23:44 reducers running
+23:45 3470 complete, 313 running, 70 pending (why pending when we have slots available? 95% cutoff?)
+04:40 Network in traffic drops from 400 MB/s to 120 MB/s as reducers take over (or mappers tail off?)
+04:46 CPU utilization drops from 20-25% to ...
+04:46 Network traffic outbound rises gradually to 75 MB/s and inbound drops to about the same, on the way to zero
+23:51 3533 complete, 284 running, 36 pending -- some map stragglers still running, some reducers pending
+23:54 3580 complete, 265 running, 8 pending
+23:56 3600 complete, 253 running, 0 pending
+04:38-04:54 ramp down to Step 1 reduce phase before Step 2 begins at 04:54 (15-20 min. mostly wasted)
+04:53 map phase done, steep ramp up in CPU utilization to reduce phase startup, topping out at 45-50% CPU, then decaying
+23:59 3609 complete, 244 running
+05:00 map 100%, reduce 87%
+24:05 3644 complete, 209 running
+05:05 CPU utilization steady downward damp after up spike as reduce phase starts 00:55 = 48%, 01:00 = 45%, 01:05 = 33%, 01:10=21%
+05:06 mapp 100%, reduce 93%
+25:07 3677 complete, 176 running
+25:08 3709 complete, 144 running
+25:10 CPU utlization 21%
+25:15 3765 complete, 88 running
+05:15 map 100% reduce 98%
+25:21 3798 complete, 55 running
+05:20 Ganglia CPU utilization down to 10%
+04:54-05:22 network traffic almost completely flat (tiny outbound bump at 05:16, no inbound traffic at all)
+24:24 3802 complete, 51 running, 0 pending
+05:20 map 100%, reduce 99%
+25:28 3827 complete, 26 running
+25:30 3-0 containers running per node (21 total for 16 nodes)
+25:32 3833 complete, 20 running
+05:33 map 100%, reduce 100% (but not done!)
+25:39 3843 complete, 10 running (3x2per node + 4 * 1 per node)
+25:41 3844 complete, 9 running
+25:47 3846 complete, 7 running (of 253 reducers)
+** Check logs for long running reducers for this completion string:
+**      "Reducer complete - %d msec elapsed, key count=%d, max values = %d, key for max values = %d, total comparisons = %d",
+25:56 3847 complete, 6 running
+25:59 3849 complete, 4 running (reducers 105, 159, 223, 247)
+reducer 105 = 378K values for key 109113644154880, 3973 seconds elapsed (66 min.), 27880534491 (28B comparisons)
+reducer 159 = 723K values for key           20905, 4205 seconds elapsed (70 min.), 20059563887 (20B) comparisons
+26:09 3851 complete, 2 running (223 & 247 still running - 247 killed at timelimit (1hr?), 223 cancelled when job terminated by me )
+50k^2 = 2.5B
 
 
 
