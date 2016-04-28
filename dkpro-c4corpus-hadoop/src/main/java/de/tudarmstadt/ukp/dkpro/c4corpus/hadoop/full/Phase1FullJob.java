@@ -100,6 +100,8 @@ public class Phase1FullJob
         D00, D01, D02, D03, D04, D05, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17, D18, D19, D20, D21, D22, D23, D24, D25, D26, D27, D28, D29, D30, D31, D32
     }
 
+    public static final long COMPARISON_LIMIT = 100*1000*1000; // enough for 30K docs (after exact matches filtered)
+
     public static C4_HAMMING_DIST[] HAMMING_ENUMS = C4_HAMMING_DIST.values();
 
     @Override
@@ -398,8 +400,10 @@ public class Phase1FullJob
         extends Reducer<LongWritable, Text, LongWritable, Text>
     {
         private long keyCount = 0;
-        private long maxValues = 0;
-        private long maxValueKey = -1L;
+        private long maxDocs = 0;
+        private long maxDocsKey = -1L;
+        private int maxSimilarDocs = 0;
+        private long maxSimilarDocsKey = -1L;
         private boolean keySeen = false;
         private long totalComparisons = 0;
         private long startTime;
@@ -412,6 +416,7 @@ public class Phase1FullJob
         {
             super.setup(context);
             LOG.info("Reducer setup starting");
+            keySeen = false;
         };
 
         @Override
@@ -421,8 +426,8 @@ public class Phase1FullJob
         {
             long elapsedMillis = System.currentTimeMillis() - startTime;
             LOG.info(String.format(
-                    "Reducer complete - %d msec elapsed, key count=%d, max values = %d, key for max values = %d, total comparisons = %d",
-                    elapsedMillis, keyCount, maxValues, maxValueKey, totalComparisons));
+                    "Reducer complete - %d msec elapsed, key count=%d, max values = %d, key for max values = %x, total comparisons = %d",
+                    elapsedMillis, keyCount, maxDocs, maxDocsKey, totalComparisons));
             super.cleanup(context);
         };
 
@@ -437,21 +442,24 @@ public class Phase1FullJob
         {
             keyCount++;
             if (!keySeen) {
-                LOG.debug(String.format("First key seen - key=%d", maxValueKey));
+                LOG.debug(String.format("First key seen - key=%x", maxDocsKey));
                 keySeen = true;
                 startTime = System.currentTimeMillis();
             }
 
             // Collect all docs with same Simhash slice value (our key)
             List<DocumentInfo> docs = new ArrayList<DocumentInfo>();
+            // TODO: Do we need to cap this for memory reasons? We've seen at least 723K docs in 10% sample run
             for (Text docString : values) {
                 DocumentInfo doc = new DocumentInfo(docString.toString());
                 docs.add(doc);
             }
 
-            if (docs.size() > maxValues) {
-                maxValues = docs.size();
-                maxValueKey = key.get();
+            int docCount = docs.size(); // save starting count
+            if (docCount > maxDocs) {
+                maxDocs = docs.size();
+                maxDocsKey = key.get();
+                LOG.debug(String.format("New max document count - key=%x, count=%d", maxDocsKey, maxDocs));
             }
 
             // Sort by full Simhash value and descending size
@@ -470,8 +478,8 @@ public class Phase1FullJob
                 }
             });
 
-            // Remove all exact matches and non-candidates so we don't need to consider them in the
-            // O(n^2) phase
+            // Remove all exact matches and non-candidates so we don't need 
+            // to consider them in the O(n^2) phase
             DocumentInfo head = null;
             long headHash = 0;
             Iterator<DocumentInfo> docIterator = docs.iterator();
@@ -491,7 +499,7 @@ public class Phase1FullJob
                     context.getCounter(C4_COUNTER.R_SIMHASH_HASH_DIFFERENT_LENGTH).increment(1);
                     docIterator.remove();
                 }
-                else if (doc.getDocSimHash().get() == headHash) {
+                else if (doc.getDocSimHash().get() == headHash) { // TODO: Didn't we already test this?
                     context.getCounter(C4_COUNTER.R_SIMHASH_EXACT_DUPLICATE).increment(1);
                     // TODO: Do we want to split output to separate files by match type?
                     context.write(doc.getDocSimHash(),
@@ -500,10 +508,24 @@ public class Phase1FullJob
                 }
             }
 
+            // See how many docs we have left after exact dupes were removed
+            if (docs.size() > maxSimilarDocs) {
+                maxSimilarDocs = docs.size();
+                maxSimilarDocsKey = key.get();
+                LOG.debug(String.format("New max similar document count - key=%x, count=%d",
+                        maxSimilarDocsKey, maxSimilarDocs));
+            }
+
             // Pairwise comparison O(n^2) of similarity for remaining candidates
+            // TODO: re-slice into smaller blocks if too many candidates? (slices only match 16 bits out of 64)
             BitSet duplicates = new BitSet(docs.size());
             long comparisons = 0;
             for (int i = 0; i < docs.size(); i++) {
+                if (comparisons > COMPARISON_LIMIT) {
+                    LOG.warn(String.format("Exceeded comparison limit %d for key %x after %d docs. N=%d for N^2 phase",
+                            comparisons, key.get(), i, docs.size()));
+                    break;
+                }
                 if (duplicates.get(i)) {
                     continue; // already a duplicate - no need to process again
                 }
