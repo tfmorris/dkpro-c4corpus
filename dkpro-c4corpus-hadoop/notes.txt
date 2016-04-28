@@ -1048,12 +1048,13 @@ Step 2 stats
 1 m3.xlarge master, 2 c3.8xlarge core @$0.61, 14 c3.8xlarge task @$0.51
 $158.35 start $10.26/hr est.
 Elapsed 4hr 45 min
-$182.90 end $24.55 cost
+$182.90 posted next morning, but didn't include all charges
+$211.35 end $53 total
 
 511 containers, 32 containers per node
 3853 total tasks = 3600 map tasks + 253 reducers
 7 waves of mappers @20 min each = est. 140 min 2hr20min
-actual map complete in 2h35m
+actual map complete in 2h35m = 25hrs est. total for 16 c3.8xlarge
 
 22:08 (UTC-4) cluster created
 02:18 Ganglia shows cluster alive
@@ -1123,6 +1124,10 @@ reducer 105 = 378K values for key 109113644154880, 3973 seconds elapsed (66 min.
 reducer 159 = 723K values for key           20905, 4205 seconds elapsed (70 min.), 20059563887 (20B) comparisons
 26:09 3851 complete, 2 running (223 & 247 still running - 247 killed at timelimit (1hr?), 223 cancelled when job terminated by me )
 50k^2 = 2.5B
+Reducer complete - 3972857 msec elapsed, key count=1038, max values = 378086, key for max values = 109113644154880, total comparisons = 27880534491
+2016-04-27 06:00:10,251 INFO [main] com.amazon.ws.emr.hadoop.fs.s3n.MultipartUploadOutputStream: close closed:false s3://tfmorris/c4corpus/cc-phase1out-2016-07-10pct-new-dataflow2/part-r-00105.gz
+Reducer complete - 4205292 msec elapsed, key count=1038, max values = 723328, key for max values = 20905, total comparisons = 20059563887
+2016-04-27 06:04:03,358 INFO [main] com.amazon.ws.emr.hadoop.fs.s3n.MultipartUploadOutputStream: close closed:false s3://tfmorris/c4corpus/cc-phase1out-2016-07-10pct-new-dataflow2/part-r-00159.gz
 
 
 
