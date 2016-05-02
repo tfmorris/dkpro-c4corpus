@@ -31,7 +31,7 @@ aws emr create-cluster \
     --ec2-attributes \
         '{"KeyName":"amazon-ec2-cc", 
         "InstanceProfile":"EMR_EC2_DefaultRole", 
-        "AvailabilityZone":"us-east-1d"}' \
+        "AvailabilityZone":"us-east-1e"}' \
     --service-role EMR_DefaultRole \
     --enable-debugging \
     --release-label emr-4.4.0 \
@@ -57,7 +57,7 @@ aws emr create-cluster \
         "-D", "mapreduce.map.maxattempts=2",
         "-D", "mapreduce.job.reduce.slowstart.completedmaps=0.95",
         "-D", "c4corpus.keepminimalhtml=true",
-        "s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-'$CRAWL'/segments/*/warc/*-00[0-3]0[1-9]-*.warc.gz",
+        "s3://aws-publicdatasets/common-crawl/crawl-data/CC-MAIN-'$CRAWL'/segments/*/warc/*-00[0-3]1[0-9]-*.warc.gz",
         "s3://tfmorris/c4corpus/cc-phase1out-'$CRAWL'-'$RUN'"],
         "Type":"CUSTOM_JAR",
         "ActionOnFailure":"TERMINATE_CLUSTER",
@@ -79,13 +79,13 @@ aws emr create-cluster \
         "Name":"C4Corpus Phase 2 new"}
         ]' \
     --instance-groups '[
-        {"InstanceCount":14,
+        {"InstanceCount":18,
             "BidPrice":"0.51",
             "InstanceGroupType":"TASK",
             "InstanceType":"c3.8xlarge",
             "Name":"Task - 14 x c3.8xlarge"},
         {"InstanceCount":2,
-            "BidPrice":"0.61",
+            "BidPrice":"0.51",
             "InstanceGroupType":"CORE",
             "InstanceType":"c3.8xlarge",
             "Name":"Core - 2 x c3.8xlarge"},
