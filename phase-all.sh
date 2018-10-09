@@ -1,6 +1,6 @@
 #!/bin/bash
 CRAWL=2016-07
-RUN=10pct-new-dataflow2
+RUN=10pct-new-dataflow2-2
 VERSION=1.0.1-SNAPSHOT
 # TODO add root S3 bucket?
 mvn clean package
@@ -23,7 +23,7 @@ aws s3 --profile cc-user \
 # 4000 file sample <crawlbase>/segments/*/warc/*-00[0-3]0[0-9]-*.warc.gz",
 echo "Creating cluster"
 aws emr create-cluster \
-    --name "C4Corpus phase 1 - 1.0.1-SNAPSHOT new-dataflow simhash2 - 2 x c3.8xlarge + 14 x c3.8xlarge 10% sample $CRAWL" \
+    --name "C4Corpus phase 1 - 1.0.1-SNAPSHOT new-dataflow simhash2 - 2 x c3.8xlarge + 18 x c3.8xlarge 10%+ sample $CRAWL" \
     --profile cc-user \
     --auto-terminate \
     --region us-east-1 \
@@ -79,7 +79,7 @@ aws emr create-cluster \
         "Name":"C4Corpus Phase 2 new"}
         ]' \
     --instance-groups '[
-        {"InstanceCount":18,
+        {"InstanceCount":2,
             "BidPrice":"0.51",
             "InstanceGroupType":"TASK",
             "InstanceType":"c3.8xlarge",

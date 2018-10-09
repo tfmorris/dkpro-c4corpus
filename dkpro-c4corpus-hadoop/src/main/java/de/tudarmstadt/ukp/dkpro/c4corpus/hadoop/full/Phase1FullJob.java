@@ -92,7 +92,8 @@ public class Phase1FullJob
         R_SIMHASH_CANDIDATE_NOT_DUPLICATE,
         R_SIMHASH_NEAR_DUPLICATE_DIFF_LANG,
         R_SIMHASH_HASH_DIFFERENT_LENGTH,
-        R_SIMHASH_COMPARISONS,
+        R_SIMHASH_COMPARISONS, 
+        R_TOO_MANY_COMPARISONS_ABORT,
     };
 
     public static enum C4_HAMMING_DIST
@@ -388,7 +389,7 @@ public class Phase1FullJob
             mos.close();
             super.cleanup(context);
             long elapsedMillis = System.currentTimeMillis() - startTime;
-            LOG.info(String.format("Mapper complete - %d records totaling %.2f MB %.2f minutes",
+            LOG.info(String.format("Mapper complete - %d records totaling %.2f MB in %.2f minutes",
                     recordCounter, sizeCounter / 1000000., elapsedMillis / 1000. / 60));
         }
     }
@@ -426,7 +427,7 @@ public class Phase1FullJob
         {
             long elapsedMillis = System.currentTimeMillis() - startTime;
             LOG.info(String.format(
-                    "Reducer complete - %d msec elapsed, key count=%d, max values = %d, key for max values = %x, total comparisons = %d",
+                    "Reducer complete - %d msec elapsed, key count=%d, max values = %d, key for max values = %016x, total comparisons = %d",
                     elapsedMillis, keyCount, maxDocs, maxDocsKey, totalComparisons));
             super.cleanup(context);
         };
@@ -442,7 +443,7 @@ public class Phase1FullJob
         {
             keyCount++;
             if (!keySeen) {
-                LOG.debug(String.format("First key seen - key=%x", maxDocsKey));
+                LOG.info(String.format("First key seen - key=%016x", maxDocsKey));
                 keySeen = true;
                 startTime = System.currentTimeMillis();
             }
@@ -459,7 +460,7 @@ public class Phase1FullJob
             if (docCount > maxDocs) {
                 maxDocs = docs.size();
                 maxDocsKey = key.get();
-                LOG.debug(String.format("New max document count - key=%x, count=%d", maxDocsKey, maxDocs));
+                LOG.debug(String.format("New max document count - key=%016x, count=%d", maxDocsKey, maxDocs));
             }
 
             // Sort by full Simhash value and descending size
@@ -512,7 +513,7 @@ public class Phase1FullJob
             if (docs.size() > maxSimilarDocs) {
                 maxSimilarDocs = docs.size();
                 maxSimilarDocsKey = key.get();
-                LOG.debug(String.format("New max similar document count - key=%x, count=%d",
+                LOG.debug(String.format("New max similar document count - key=%016x, count=%d",
                         maxSimilarDocsKey, maxSimilarDocs));
             }
 
@@ -522,8 +523,9 @@ public class Phase1FullJob
             long comparisons = 0;
             for (int i = 0; i < docs.size(); i++) {
                 if (comparisons > COMPARISON_LIMIT) {
-                    LOG.warn(String.format("Exceeded comparison limit %d for key %x after %d docs. N=%d for N^2 phase",
+                    LOG.warn(String.format("Exceeded comparison limit %d for key %016x after %5d docs. N=%6d for N^2 phase",
                             comparisons, key.get(), i, docs.size()));
+                    context.getCounter(C4_COUNTER.R_TOO_MANY_COMPARISONS_ABORT).increment(1);
                     break;
                 }
                 if (duplicates.get(i)) {
